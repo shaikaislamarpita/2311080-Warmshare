@@ -6,13 +6,26 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.database import get_session_factory
-from backend.models import Listing
-from backend.schemas import (
-    ListingCreate,
-    ListingUpdate,
-    ListingResponse,
-)
+# Support both local development and Vercel deployment
+try:
+    from backend.database import get_session_factory
+    from backend.models import Listing
+    from backend.schemas import (
+        ListingCreate,
+        ListingUpdate,
+        ListingResponse,
+    )
+except ModuleNotFoundError as error:
+    if error.name != "backend":
+        raise
+
+    from database import get_session_factory
+    from models import Listing
+    from schemas import (
+        ListingCreate,
+        ListingUpdate,
+        ListingResponse,
+    )
 
 
 app = FastAPI(title="WarmShare API")
@@ -45,11 +58,11 @@ def get_db():
 @app.post(
     "/api/listings",
     response_model=ListingResponse,
-    status_code=201
+    status_code=201,
 )
 def create_listing(
     listing: ListingCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     new_listing = Listing(**listing.model_dump())
 
@@ -63,7 +76,7 @@ def create_listing(
 # 2. READ LIST: Get all donation listings
 @app.get(
     "/api/listings",
-    response_model=list[ListingResponse]
+    response_model=list[ListingResponse],
 )
 def get_all_listings(db: Session = Depends(get_db)):
     statement = select(Listing).order_by(Listing.id.desc())
@@ -75,18 +88,18 @@ def get_all_listings(db: Session = Depends(get_db)):
 # 3. READ SINGLE: Get a listing by ID
 @app.get(
     "/api/listings/{listing_id}",
-    response_model=ListingResponse
+    response_model=ListingResponse,
 )
 def get_single_listing(
     listing_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     listing = db.get(Listing, listing_id)
 
     if listing is None:
         raise HTTPException(
             status_code=404,
-            detail="Listing not found"
+            detail="Listing not found",
         )
 
     return listing
@@ -95,19 +108,19 @@ def get_single_listing(
 # 4. UPDATE: Edit an existing donation listing
 @app.put(
     "/api/listings/{listing_id}",
-    response_model=ListingResponse
+    response_model=ListingResponse,
 )
 def update_listing(
     listing_id: int,
     updated_data: ListingUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     listing = db.get(Listing, listing_id)
 
     if listing is None:
         raise HTTPException(
             status_code=404,
-            detail="Listing not found"
+            detail="Listing not found",
         )
 
     # Update all editable fields
@@ -123,18 +136,18 @@ def update_listing(
 # 5. DELETE: Remove a donation listing
 @app.delete(
     "/api/listings/{listing_id}",
-    status_code=204
+    status_code=204,
 )
 def delete_listing(
     listing_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     listing = db.get(Listing, listing_id)
 
     if listing is None:
         raise HTTPException(
             status_code=404,
-            detail="Listing not found"
+            detail="Listing not found",
         )
 
     db.delete(listing)
@@ -144,11 +157,18 @@ def delete_listing(
 
 
 # SERVE BUILT REACT FRONTEND
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+FRONTEND_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "frontend"
+    / "dist"
+)
 
 if FRONTEND_DIR.is_dir():
     app.mount(
         "/",
-        StaticFiles(directory=FRONTEND_DIR, html=True),
-        name="frontend"
+        StaticFiles(
+            directory=FRONTEND_DIR,
+            html=True,
+        ),
+        name="frontend",
     )
