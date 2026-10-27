@@ -79,3 +79,48 @@ class Listing(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+# Database model for registered WarmShare users
+class User(Base):
+    __tablename__ = "users"
+
+    # Unique ID for each user
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    # User's full name
+    full_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    # Email used for login
+    email: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    # Store hashed passwords, never plaintext passwords
+    password_hash: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    # Default account role
+    role: Mapped[str] = mapped_column(
+        String(20),
+        default="user",
+        nullable=False,
+    )
+
+    # Account creation timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

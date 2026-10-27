@@ -1,144 +1,250 @@
 
-import { useEffect, useState, type FormEvent } from "react"
+import {useEffect,useState,type FormEvent} from "react"
 
-// Data received from FastAPI
-type Listing = {
-  id: number
-  title: string
-  category: string
-  size: string
-  age_group: string
-  gender: string
-  condition: string
-  quantity: number
-  pickup_address: string
+type Listing={
+  id:number
+  title:string
+  category:string
+  size:string
+  age_group:string
+  gender:string
+  condition:string
+  quantity:number
+  pickup_address:string
 }
 
-// Data sent to FastAPI
-type ListingForm = Omit<Listing, "id">
+type ListingForm=Omit<Listing,"id">
 
-const emptyForm: ListingForm = {
-  title: "",
-  category: "jacket",
-  size: "M",
-  age_group: "adult",
-  gender: "unisex",
-  condition: "good",
-  quantity: 1,
-  pickup_address: "",
+type AuthUser={
+  id:number
+  full_name:string
+  email:string
+  role:string
 }
 
-const categories = [
-  "jacket",
-  "sweater",
-  "blanket",
-  "shawl",
-  "socks",
-]
+type AuthMode="login"|"register"
 
-const categoryEmojis: Record<string, string> = {
-  jacket: "🧥",
-  sweater: "🧶",
-  blanket: "🛏️",
-  shawl: "🧣",
-  socks: "🧦",
+const emptyForm:ListingForm={
+  title:"",
+  category:"jacket",
+  size:"M",
+  age_group:"adult",
+  gender:"unisex",
+  condition:"good",
+  quantity:1,
+  pickup_address:""
 }
 
-function formatText(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+const categories=["jacket","sweater","blanket","shawl","socks"]
+
+const categoryEmojis:Record<string,string>={
+  jacket:"🧥",
+  sweater:"🧶",
+  blanket:"🛏️",
+  shawl:"🧣",
+  socks:"🧦"
 }
 
-// Read error messages returned by FastAPI
-async function readError(response: Response): Promise<string> {
-  try {
-    const data = await response.json()
+function formatText(value:string){
+  return value.replace(/_/g," ").replace(/\b\w/g,letter=>letter.toUpperCase())
+}
 
-    if (typeof data.detail === "string") {
-      return data.detail
+async function readError(response:Response):Promise<string>{
+  try{
+    const data=await response.json()
+    if(typeof data.detail==="string")return data.detail
+    if(Array.isArray(data.detail)){
+      return data.detail.map((item:{msg?:string})=>item.msg||"Invalid input").join(", ")
     }
-
-    if (Array.isArray(data.detail)) {
-      return data.detail
-        .map((item: { msg?: string }) => item.msg || "Invalid input")
-        .join(", ")
-    }
-  } catch {
-    // Use a general message if response is not JSON
+  }catch{
+    // Handle non-JSON responses.
   }
-
   return `Request failed (${response.status})`
 }
 
-export default function App() {
-  const [listings, setListings] = useState<Listing[]>([])
-  const [selectedListing, setSelectedListing] =
-    useState<Listing | null>(null)
+export default function App(){
+  const [listings,setListings]=useState<Listing[]>([])
+  const [selectedListing,setSelectedListing]=useState<Listing|null>(null)
+  const [form,setForm]=useState<ListingForm>({...emptyForm})
+  const [showForm,setShowForm]=useState(false)
+  const [editingId,setEditingId]=useState<number|null>(null)
+  const [search,setSearch]=useState("")
+  const [categoryFilter,setCategoryFilter]=useState("all")
+  const [loading,setLoading]=useState(true)
+  const [saving,setSaving]=useState(false)
+  const [deletingId,setDeletingId]=useState<number|null>(null)
+  const [deleteTarget,setDeleteTarget]=useState<Listing|null>(null)
+  const [message,setMessage]=useState("")
+  const [error,setError]=useState("")
 
-  const [form, setForm] = useState<ListingForm>(emptyForm)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  // Authentication states
+  const [authMode,setAuthMode]=useState<AuthMode|null>(null)
+  const [authName,setAuthName]=useState("")
+  const [authEmail,setAuthEmail]=useState("")
+  const [authPassword,setAuthPassword]=useState("")
+  const [authBusy,setAuthBusy]=useState(false)
+  const [authError,setAuthError]=useState("")
+  const [authUser,setAuthUser]=useState<AuthUser|null>(null)
+  const [checkingSession,setCheckingSession]=useState(true)
 
-  const [search, setSearch] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
+  // Restore login after refreshing the browser tab.
+  useEffect(()=>{
+    const token=sessionStorage.getItem("warmshare_access_token")
 
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+    if(!token){
+      setCheckingSession(false)
+      return
+    }
 
-  // Donation selected for deletion
-  const [deleteTarget, setDeleteTarget] =
-    useState<Listing | null>(null)
+    fetch("/api/auth/me",{
+      headers:{Authorization:`Bearer ${token}`}
+    })
+    .then(async response=>{
+      if(!response.ok)throw new Error("Invalid session")
+      const user:AuthUser=await response.json()
+      setAuthUser(user)
+    })
+    .catch(()=>{
+      sessionStorage.removeItem("warmshare_access_token")
+      setAuthUser(null)
+    })
+    .finally(()=>setCheckingSession(false))
+  },[])
 
-  const [message, setMessage] = useState("")
-  const [error, setError] = useState("")
+  // Load donation listings.
+  useEffect(()=>{
+    void loadListings()
+  },[])
 
-  // Scroll to an element after React updates the page
-  function scrollToSection(id: string) {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+  function scrollToSection(id:string){
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
         document.getElementById(id)?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
+          behavior:"smooth",
+          block:"start"
         })
       })
     })
   }
 
-  // READ LIST: GET /api/listings
-  async function loadListings() {
-    setLoading(true)
+  function openAuth(mode:AuthMode){
+    setAuthMode(mode)
+    setAuthName("")
+    setAuthEmail("")
+    setAuthPassword("")
+    setAuthError("")
+    setMessage("")
+  }
+
+  function logout(){
+    sessionStorage.removeItem("warmshare_access_token")
+    setAuthUser(null)
+    setAuthMode(null)
+    setMessage("You have logged out successfully.")
     setError("")
+  }
 
-    try {
-      const response = await fetch("/api/listings")
+  // Register or login using FastAPI.
+  async function handleAuth(event:FormEvent<HTMLFormElement>){
+    event.preventDefault()
 
-      if (!response.ok) {
+    if(!authMode)return
+
+    setAuthBusy(true)
+    setAuthError("")
+
+    try{
+      if(authMode==="register"){
+        const registerResponse=await fetch("/api/auth/register",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            full_name:authName,
+            email:authEmail,
+            password:authPassword
+          })
+        })
+
+        if(!registerResponse.ok){
+          throw new Error(await readError(registerResponse))
+        }
+      }
+
+      const loginResponse=await fetch("/api/auth/login",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          email:authEmail,
+          password:authPassword
+        })
+      })
+
+      if(!loginResponse.ok){
+        throw new Error(await readError(loginResponse))
+      }
+
+      const loginData:{access_token:string;token_type:string}=
+        await loginResponse.json()
+
+      const profileResponse=await fetch("/api/auth/me",{
+        headers:{
+          Authorization:`Bearer ${loginData.access_token}`
+        }
+      })
+
+      if(!profileResponse.ok){
+        throw new Error(await readError(profileResponse))
+      }
+
+      const user:AuthUser=await profileResponse.json()
+
+      sessionStorage.setItem(
+        "warmshare_access_token",
+        loginData.access_token
+      )
+
+      setAuthUser(user)
+      setAuthMode(null)
+      setAuthPassword("")
+      setError("")
+      setMessage(
+        authMode==="register"
+          ?"Account created successfully!"
+          :`Welcome back, ${user.full_name}!`
+      )
+    }catch(err){
+      setAuthError(
+        err instanceof Error?err.message:"Authentication failed"
+      )
+    }finally{
+      setAuthBusy(false)
+    }
+  }
+
+  // READ: Get all donations.
+  async function loadListings(){
+    setLoading(true)
+
+    try{
+      const response=await fetch("/api/listings")
+
+      if(!response.ok){
         throw new Error(await readError(response))
       }
 
-      const data: Listing[] = await response.json()
+      const data:Listing[]=await response.json()
       setListings(data)
-    } catch (err) {
+    }catch(err){
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load donations"
+        err instanceof Error?err.message:"Unable to load donations"
       )
-    } finally {
+    }finally{
       setLoading(false)
     }
   }
 
-  // Load donations when the application opens
-  useEffect(() => {
-    void loadListings()
-  }, [])
-
-  // Open the Create Donation form
-  function openCreateForm() {
-    setForm({ ...emptyForm })
+  function openCreateForm(){
+    setForm({...emptyForm})
     setEditingId(null)
     setSelectedListing(null)
     setShowForm(true)
@@ -147,17 +253,16 @@ export default function App() {
     scrollToSection("donation-form")
   }
 
-  // Open the Edit Donation form
-  function openEditForm(listing: Listing) {
+  function openEditForm(listing:Listing){
     setForm({
-      title: listing.title,
-      category: listing.category,
-      size: listing.size,
-      age_group: listing.age_group,
-      gender: listing.gender,
-      condition: listing.condition,
-      quantity: listing.quantity,
-      pickup_address: listing.pickup_address,
+      title:listing.title,
+      category:listing.category,
+      size:listing.size,
+      age_group:listing.age_group,
+      gender:listing.gender,
+      condition:listing.condition,
+      quantity:listing.quantity,
+      pickup_address:listing.pickup_address
     })
 
     setEditingId(listing.id)
@@ -168,176 +273,156 @@ export default function App() {
     scrollToSection("donation-form")
   }
 
-  // Close the donation form
-  function closeForm() {
+  function closeForm(){
     setShowForm(false)
     setEditingId(null)
-    setForm({ ...emptyForm })
+    setForm({...emptyForm})
   }
 
-  // Update a field in the form
-  function updateForm(
-    field: keyof ListingForm,
-    value: string | number
-  ) {
-    setForm((previous) => ({
+  function updateForm(field:keyof ListingForm,value:string|number){
+    setForm(previous=>({
       ...previous,
-      [field]: value,
+      [field]:value
     }))
   }
 
-  // CREATE: POST /api/listings
-  // UPDATE: PUT /api/listings/{id}
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  // CREATE and UPDATE donations.
+  async function handleSubmit(event:FormEvent<HTMLFormElement>){
     event.preventDefault()
 
     setSaving(true)
     setError("")
     setMessage("")
 
-    const isEditing = editingId !== null
+    const isEditing=editingId!==null
+    const url=isEditing
+      ?`/api/listings/${editingId}`
+      :"/api/listings"
 
-    const url = isEditing
-      ? `/api/listings/${editingId}`
-      : "/api/listings"
-
-    try {
-      const response = await fetch(url, {
-        method: isEditing ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
+    try{
+      const response=await fetch(url,{
+        method:isEditing?"PUT":"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(form)
       })
 
-      if (!response.ok) {
+      if(!response.ok){
         throw new Error(await readError(response))
       }
 
       closeForm()
 
+      await loadListings()
+
       setMessage(
         isEditing
-          ? "Donation updated successfully!"
-          : "Donation created successfully!"
+          ?"Donation updated successfully!"
+          :"Donation created successfully!"
       )
 
-      await loadListings()
       scrollToSection("donations")
-    } catch (err) {
+    }catch(err){
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to save donation"
+        err instanceof Error?err.message:"Unable to save donation"
       )
-    } finally {
+    }finally{
       setSaving(false)
     }
   }
 
-  // READ SINGLE: GET /api/listings/{id}
-  async function viewDetails(id: number) {
+  // READ: Get one donation.
+  async function viewDetails(id:number){
     setError("")
     setMessage("")
 
-    try {
-      const response = await fetch(`/api/listings/${id}`)
+    try{
+      const response=await fetch(`/api/listings/${id}`)
 
-      if (!response.ok) {
+      if(!response.ok){
         throw new Error(await readError(response))
       }
 
-      const data: Listing = await response.json()
+      const data:Listing=await response.json()
 
       setSelectedListing(data)
       setShowForm(false)
       setEditingId(null)
-
-      // Automatically scroll to the selected donation
       scrollToSection("donation-details")
-    } catch (err) {
+    }catch(err){
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load donation details"
+        err instanceof Error?err.message:"Unable to load donation details"
       )
     }
   }
 
-  // Open the custom Delete Confirmation Modal
-  function confirmDelete(listing: Listing) {
+  function confirmDelete(listing:Listing){
     setDeleteTarget(listing)
   }
 
-  // Close the custom Delete Confirmation Modal
-  function cancelDelete() {
-    if (deletingId !== null) return
+  function cancelDelete(){
+    if(deletingId!==null)return
     setDeleteTarget(null)
   }
 
-  // DELETE: DELETE /api/listings/{id}
-  async function deleteListing() {
-    if (!deleteTarget || deletingId !== null) return
+  // DELETE donation.
+  async function deleteListing(){
+    if(!deleteTarget||deletingId!==null)return
 
-    const id = deleteTarget.id
+    const id=deleteTarget.id
 
     setDeletingId(id)
     setError("")
     setMessage("")
 
-    try {
-      const response = await fetch(`/api/listings/${id}`, {
-        method: "DELETE",
+    try{
+      const response=await fetch(`/api/listings/${id}`,{
+        method:"DELETE"
       })
 
-      if (!response.ok) {
+      if(!response.ok){
         throw new Error(await readError(response))
       }
 
       setDeleteTarget(null)
       setSelectedListing(null)
 
-      if (editingId === id) {
+      if(editingId===id){
         closeForm()
       }
 
-      setMessage("Donation deleted successfully!")
-
       await loadListings()
-    } catch (err) {
+      setMessage("Donation deleted successfully!")
+    }catch(err){
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to delete donation"
+        err instanceof Error?err.message:"Unable to delete donation"
       )
-    } finally {
+    }finally{
       setDeletingId(null)
     }
   }
 
-  // Search and filter donations
-  const filteredListings = listings.filter((listing) => {
-    const keyword = search.trim().toLowerCase()
+  const filteredListings=listings.filter(listing=>{
+    const keyword=search.trim().toLowerCase()
 
-    const matchesSearch =
-      listing.title.toLowerCase().includes(keyword) ||
+    const matchesSearch=
+      listing.title.toLowerCase().includes(keyword)||
       listing.pickup_address.toLowerCase().includes(keyword)
 
-    const matchesCategory =
-      categoryFilter === "all" ||
-      listing.category.toLowerCase() === categoryFilter
+    const matchesCategory=
+      categoryFilter==="all"||
+      listing.category.toLowerCase()===categoryFilter
 
-    return matchesSearch && matchesCategory
+    return matchesSearch&&matchesCategory
   })
 
-  // Calculate total donated items
-  const totalItems = listings.reduce(
-    (total, listing) => total + listing.quantity,
+  const totalItems=listings.reduce(
+    (total,listing)=>total+listing.quantity,
     0
   )
 
-  return (
+  return(
     <div className="app">
+
       {/* Navigation */}
       <header className="navbar">
         <div className="nav-container">
@@ -351,17 +436,62 @@ export default function App() {
             <a href="#donations">Donations</a>
           </nav>
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={openCreateForm}
-          >
-            + Add Donation
-          </button>
+          <div className="nav-actions">
+            {checkingSession?(
+              <span className="auth-loading">Checking account...</span>
+            ):authUser?(
+              <>
+                <div className="user-profile">
+                  <span className="user-avatar">
+                    {authUser.full_name.charAt(0).toUpperCase()}
+                  </span>
+                  <div className="user-info">
+                    <strong>{authUser.full_name}</strong>
+                    <small>{authUser.email}</small>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={logout}
+                >
+                  Logout
+                </button>
+              </>
+            ):(
+              <>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={()=>openAuth("login")}
+                >
+                  Login
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={()=>openAuth("register")}
+                >
+                  Register
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={openCreateForm}
+            >
+              + Add Donation
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="main-content">
+
         {/* Hero Section */}
         <section className="hero" id="home">
           <div className="hero-content">
@@ -371,7 +501,7 @@ export default function App() {
 
             <h1>
               Share warmth.
-              <br />
+              <br/>
               <span>Spread kindness.</span>
             </h1>
 
@@ -425,38 +555,38 @@ export default function App() {
           </div>
         </section>
 
-        {/* Success and Error Messages */}
-        {message && (
+        {/* Messages */}
+        {message&&(
           <div className="alert alert-success" role="status">
             {message}
           </div>
         )}
 
-        {error && (
+        {error&&(
           <div className="alert alert-error" role="alert">
             {error}
           </div>
         )}
 
         {/* Donation Form */}
-        {showForm && (
+        {showForm&&(
           <section
             className="form-section"
             id="donation-form"
-            style={{ scrollMarginTop: 110 }}
+            style={{scrollMarginTop:110}}
           >
             <div className="section-heading">
               <div>
                 <span className="section-label">
-                  {editingId !== null
-                    ? "UPDATE DONATION"
-                    : "SHARE YOUR WARMTH"}
+                  {editingId!==null
+                    ?"UPDATE DONATION"
+                    :"SHARE YOUR WARMTH"}
                 </span>
 
                 <h2>
-                  {editingId !== null
-                    ? "Edit Donation"
-                    : "Add a New Donation"}
+                  {editingId!==null
+                    ?"Edit Donation"
+                    :"Add a New Donation"}
                 </h2>
 
                 <p>
@@ -474,12 +604,12 @@ export default function App() {
               </button>
             </div>
 
-            <form className="donation-form" onSubmit={handleSubmit}>
+            <form
+              className="donation-form"
+              onSubmit={handleSubmit}
+            >
               <div className="form-group full-width">
-                <label htmlFor="title">
-                  Donation Title
-                </label>
-
+                <label htmlFor="title">Donation Title</label>
                 <input
                   id="title"
                   type="text"
@@ -488,25 +618,18 @@ export default function App() {
                   maxLength={120}
                   placeholder="Example: Warm Winter Jacket"
                   value={form.title}
-                  onChange={(event) =>
-                    updateForm("title", event.target.value)
-                  }
+                  onChange={event=>updateForm("title",event.target.value)}
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="category">
-                  Category
-                </label>
-
+                <label htmlFor="category">Category</label>
                 <select
                   id="category"
                   value={form.category}
-                  onChange={(event) =>
-                    updateForm("category", event.target.value)
-                  }
+                  onChange={event=>updateForm("category",event.target.value)}
                 >
-                  {categories.map((category) => (
+                  {categories.map(category=>(
                     <option key={category} value={category}>
                       {formatText(category)}
                     </option>
@@ -516,13 +639,10 @@ export default function App() {
 
               <div className="form-group">
                 <label htmlFor="size">Size</label>
-
                 <select
                   id="size"
                   value={form.size}
-                  onChange={(event) =>
-                    updateForm("size", event.target.value)
-                  }
+                  onChange={event=>updateForm("size",event.target.value)}
                 >
                   <option value="free">Free Size</option>
                   <option value="XS">XS</option>
@@ -535,16 +655,11 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="age_group">
-                  Age Group
-                </label>
-
+                <label htmlFor="age_group">Age Group</label>
                 <select
                   id="age_group"
                   value={form.age_group}
-                  onChange={(event) =>
-                    updateForm("age_group", event.target.value)
-                  }
+                  onChange={event=>updateForm("age_group",event.target.value)}
                 >
                   <option value="child">Child</option>
                   <option value="adult">Adult</option>
@@ -553,13 +668,10 @@ export default function App() {
 
               <div className="form-group">
                 <label htmlFor="gender">Gender</label>
-
                 <select
                   id="gender"
                   value={form.gender}
-                  onChange={(event) =>
-                    updateForm("gender", event.target.value)
-                  }
+                  onChange={event=>updateForm("gender",event.target.value)}
                 >
                   <option value="unisex">Unisex</option>
                   <option value="male">Male</option>
@@ -568,16 +680,11 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="condition">
-                  Condition
-                </label>
-
+                <label htmlFor="condition">Condition</label>
                 <select
                   id="condition"
                   value={form.condition}
-                  onChange={(event) =>
-                    updateForm("condition", event.target.value)
-                  }
+                  onChange={event=>updateForm("condition",event.target.value)}
                 >
                   <option value="like new">Like New</option>
                   <option value="good">Good</option>
@@ -586,10 +693,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="quantity">
-                  Quantity
-                </label>
-
+                <label htmlFor="quantity">Quantity</label>
                 <input
                   id="quantity"
                   type="number"
@@ -597,12 +701,10 @@ export default function App() {
                   min={1}
                   step={1}
                   value={form.quantity}
-                  onChange={(event) =>
-                    updateForm(
-                      "quantity",
-                      Number(event.target.value)
-                    )
-                  }
+                  onChange={event=>updateForm(
+                    "quantity",
+                    Number(event.target.value)
+                  )}
                 />
               </div>
 
@@ -610,19 +712,16 @@ export default function App() {
                 <label htmlFor="pickup_address">
                   Pickup Address
                 </label>
-
                 <textarea
                   id="pickup_address"
                   required
                   minLength={3}
                   placeholder="Example: Uttara, Dhaka"
                   value={form.pickup_address}
-                  onChange={(event) =>
-                    updateForm(
-                      "pickup_address",
-                      event.target.value
-                    )
-                  }
+                  onChange={event=>updateForm(
+                    "pickup_address",
+                    event.target.value
+                  )}
                 />
               </div>
 
@@ -641,10 +740,10 @@ export default function App() {
                   disabled={saving}
                 >
                   {saving
-                    ? "Saving..."
-                    : editingId !== null
-                    ? "Update Donation"
-                    : "Create Donation"}
+                    ?"Saving..."
+                    :editingId!==null
+                    ?"Update Donation"
+                    :"Create Donation"}
                 </button>
               </div>
             </form>
@@ -652,25 +751,24 @@ export default function App() {
         )}
 
         {/* Single Donation Details */}
-        {selectedListing && (
+        {selectedListing&&(
           <section
             className="details-section"
             id="donation-details"
-            style={{ scrollMarginTop: 110 }}
+            style={{scrollMarginTop:110}}
           >
             <div className="section-heading">
               <div>
                 <span className="section-label">
                   DONATION DETAILS
                 </span>
-
                 <h2>{selectedListing.title}</h2>
               </div>
 
               <button
                 type="button"
                 className="btn btn-outline"
-                onClick={() => setSelectedListing(null)}
+                onClick={()=>setSelectedListing(null)}
               >
                 Close
               </button>
@@ -680,37 +778,30 @@ export default function App() {
               <p>
                 <strong>ID:</strong> {selectedListing.id}
               </p>
-
               <p>
                 <strong>Category:</strong>{" "}
                 {formatText(selectedListing.category)}
               </p>
-
               <p>
                 <strong>Size:</strong>{" "}
                 {formatText(selectedListing.size)}
               </p>
-
               <p>
                 <strong>Age Group:</strong>{" "}
                 {formatText(selectedListing.age_group)}
               </p>
-
               <p>
                 <strong>Gender:</strong>{" "}
                 {formatText(selectedListing.gender)}
               </p>
-
               <p>
                 <strong>Condition:</strong>{" "}
                 {formatText(selectedListing.condition)}
               </p>
-
               <p>
                 <strong>Quantity:</strong>{" "}
                 {selectedListing.quantity}
               </p>
-
               <p>
                 <strong>Pickup Address:</strong>{" "}
                 {selectedListing.pickup_address}
@@ -721,7 +812,7 @@ export default function App() {
               <button
                 type="button"
                 className="btn btn-outline"
-                onClick={() => openEditForm(selectedListing)}
+                onClick={()=>openEditForm(selectedListing)}
               >
                 Edit Donation
               </button>
@@ -729,8 +820,8 @@ export default function App() {
               <button
                 type="button"
                 className="btn btn-danger"
-                disabled={deletingId === selectedListing.id}
-                onClick={() => confirmDelete(selectedListing)}
+                disabled={deletingId===selectedListing.id}
+                onClick={()=>confirmDelete(selectedListing)}
               >
                 Delete Donation
               </button>
@@ -742,7 +833,7 @@ export default function App() {
         <section
           className="donations-section"
           id="donations"
-          style={{ scrollMarginTop: 110 }}
+          style={{scrollMarginTop:110}}
         >
           <div className="section-heading">
             <div>
@@ -766,23 +857,17 @@ export default function App() {
               placeholder="Search by title or pickup location..."
               aria-label="Search donations"
               value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
+              onChange={event=>setSearch(event.target.value)}
             />
 
             <select
               aria-label="Filter by category"
               value={categoryFilter}
-              onChange={(event) =>
-                setCategoryFilter(event.target.value)
-              }
+              onChange={event=>setCategoryFilter(event.target.value)}
             >
-              <option value="all">
-                All Categories
-              </option>
+              <option value="all">All Categories</option>
 
-              {categories.map((category) => (
+              {categories.map(category=>(
                 <option key={category} value={category}>
                   {formatText(category)}
                 </option>
@@ -792,15 +877,15 @@ export default function App() {
             <button
               type="button"
               className="btn btn-outline"
-              onClick={() => void loadListings()}
+              onClick={()=>void loadListings()}
               disabled={loading}
             >
-              {loading ? "Loading..." : "Refresh"}
+              {loading?"Loading...":"Refresh"}
             </button>
           </div>
 
-          {/* Loading State */}
-          {loading && listings.length === 0 ? (
+          {/* Loading and Empty States */}
+          {loading&&listings.length===0?(
             <div className="empty-state">
               <span className="empty-icon">⏳</span>
               <h3>Loading donations...</h3>
@@ -808,8 +893,7 @@ export default function App() {
                 Please wait while we retrieve the listings.
               </p>
             </div>
-          ) : filteredListings.length === 0 ? (
-            /* Empty State */
+          ):filteredListings.length===0?(
             <div className="empty-state">
               <span className="empty-icon">📦</span>
               <h3>No donations found</h3>
@@ -817,10 +901,9 @@ export default function App() {
                 Try another search or add a new donation.
               </p>
             </div>
-          ) : (
-            /* Donation Cards */
+          ):(
             <div className="donation-grid">
-              {filteredListings.map((listing) => (
+              {filteredListings.map(listing=>(
                 <article
                   className="donation-card"
                   key={listing.id}
@@ -833,7 +916,7 @@ export default function App() {
                     <span className="card-emoji">
                       {categoryEmojis[
                         listing.category.toLowerCase()
-                      ] || "📦"}
+                      ]||"📦"}
                     </span>
                   </div>
 
@@ -858,9 +941,7 @@ export default function App() {
                       <button
                         type="button"
                         className="btn btn-primary"
-                        onClick={() =>
-                          void viewDetails(listing.id)
-                        }
+                        onClick={()=>void viewDetails(listing.id)}
                       >
                         View Details
                       </button>
@@ -868,7 +949,7 @@ export default function App() {
                       <button
                         type="button"
                         className="btn btn-outline"
-                        onClick={() => openEditForm(listing)}
+                        onClick={()=>openEditForm(listing)}
                       >
                         Edit
                       </button>
@@ -876,12 +957,12 @@ export default function App() {
                       <button
                         type="button"
                         className="btn btn-danger"
-                        disabled={deletingId === listing.id}
-                        onClick={() => confirmDelete(listing)}
+                        disabled={deletingId===listing.id}
+                        onClick={()=>confirmDelete(listing)}
                       >
-                        {deletingId === listing.id
-                          ? "Deleting..."
-                          : "Delete"}
+                        {deletingId===listing.id
+                          ?"Deleting..."
+                          :"Delete"}
                       </button>
                     </div>
                   </div>
@@ -892,8 +973,162 @@ export default function App() {
         </section>
       </main>
 
-      {/* Custom Delete Confirmation Modal */}
-      {deleteTarget && (
+      {/* Registration and Login Modal */}
+      {authMode&&(
+        <div
+          className="modal-overlay"
+          onMouseDown={event=>{
+            if(
+              event.target===event.currentTarget&&
+              !authBusy
+            ){
+              setAuthMode(null)
+            }
+          }}
+        >
+          <section
+            className="auth-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-title"
+          >
+            <div className="auth-heading">
+              <div>
+                <span className="section-label">
+                  WARMSHARE ACCOUNT
+                </span>
+
+                <h2 id="auth-title">
+                  {authMode==="register"
+                    ?"Create an Account"
+                    :"Welcome Back"}
+                </h2>
+
+                <p>
+                  {authMode==="register"
+                    ?"Join the community and share warmth."
+                    :"Log in to your WarmShare account."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="auth-close"
+                aria-label="Close"
+                disabled={authBusy}
+                onClick={()=>setAuthMode(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            {authError&&(
+              <div className="alert alert-error" role="alert">
+                {authError}
+              </div>
+            )}
+
+            <form
+              className="auth-form"
+              onSubmit={handleAuth}
+            >
+              {authMode==="register"&&(
+                <div className="form-group">
+                  <label htmlFor="auth-name">
+                    Full Name
+                  </label>
+                  <input
+                    id="auth-name"
+                    type="text"
+                    autoComplete="name"
+                    minLength={2}
+                    maxLength={100}
+                    required
+                    value={authName}
+                    onChange={event=>setAuthName(event.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="form-group">
+                <label htmlFor="auth-email">
+                  Email Address
+                </label>
+                <input
+                  id="auth-email"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={255}
+                  required
+                  value={authEmail}
+                  onChange={event=>setAuthEmail(event.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="auth-password">
+                  Password
+                </label>
+                <input
+                  id="auth-password"
+                  type="password"
+                  autoComplete={
+                    authMode==="register"
+                      ?"new-password"
+                      :"current-password"
+                  }
+                  minLength={
+                    authMode==="register"?8:undefined
+                  }
+                  maxLength={128}
+                  required
+                  value={authPassword}
+                  onChange={event=>setAuthPassword(event.target.value)}
+                />
+
+                {authMode==="register"&&(
+                  <small>
+                    Password must contain at least 8 characters.
+                  </small>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={authBusy}
+              >
+                {authBusy
+                  ?"Please wait..."
+                  :authMode==="register"
+                  ?"Create Account"
+                  :"Login"}
+              </button>
+            </form>
+
+            <p className="auth-switch">
+              {authMode==="register"
+                ?"Already have an account?"
+                :"New to WarmShare?"}
+              {" "}
+              <button
+                type="button"
+                disabled={authBusy}
+                onClick={()=>openAuth(
+                  authMode==="register"
+                    ?"login"
+                    :"register"
+                )}
+              >
+                {authMode==="register"?"Login":"Register"}
+              </button>
+            </p>
+          </section>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget&&(
         <div className="modal-overlay">
           <div
             className="delete-modal"
@@ -913,7 +1148,7 @@ export default function App() {
             <p id="delete-modal-description">
               Are you sure you want to delete
               <strong> {deleteTarget.title}</strong>?
-              <br />
+              <br/>
               This action cannot be undone.
             </p>
 
@@ -921,7 +1156,7 @@ export default function App() {
               <button
                 type="button"
                 className="btn btn-outline"
-                disabled={deletingId !== null}
+                disabled={deletingId!==null}
                 onClick={cancelDelete}
               >
                 Cancel
@@ -930,12 +1165,12 @@ export default function App() {
               <button
                 type="button"
                 className="btn btn-confirm-delete"
-                disabled={deletingId !== null}
-                onClick={() => void deleteListing()}
+                disabled={deletingId!==null}
+                onClick={()=>void deleteListing()}
               >
-                {deletingId !== null
-                  ? "Deleting..."
-                  : "Yes, Delete"}
+                {deletingId!==null
+                  ?"Deleting..."
+                  :"Yes, Delete"}
               </button>
             </div>
           </div>
@@ -947,7 +1182,6 @@ export default function App() {
         <p>
           WarmShare — Share warmth, spread kindness.
         </p>
-
         <p>
           Made for communities in Bangladesh.
         </p>
