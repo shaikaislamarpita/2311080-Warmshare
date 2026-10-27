@@ -1,428 +1,558 @@
 
-import {useEffect,useState,type FormEvent} from "react"
+import { useEffect, useState, type FormEvent } from "react";
 
-type Listing={
-  id:number
-  title:string
-  category:string
-  size:string
-  age_group:string
-  gender:string
-  condition:string
-  quantity:number
-  pickup_address:string
+type Listing = {
+  id: number;
+  title: string;
+  category: string;
+  size: string;
+  age_group: string;
+  gender: string;
+  condition: string;
+  quantity: number;
+  pickup_address: string;
+  owner_id: number | null;
+};
+
+type ListingForm = Omit<Listing, "id" | "owner_id">;
+
+type AuthUser = {
+  id: number;
+  full_name: string;
+  email: string;
+  role: string;
+};
+
+type AuthMode = "login" | "register";
+
+const TOKEN_KEY = "warmshare_access_token";
+
+const emptyForm: ListingForm = {
+  title: "",
+  category: "jacket",
+  size: "M",
+  age_group: "adult",
+  gender: "unisex",
+  condition: "good",
+  quantity: 1,
+  pickup_address: "",
+};
+
+const categories = [
+  "jacket",
+  "sweater",
+  "blanket",
+  "shawl",
+  "socks",
+];
+
+const categoryEmojis: Record<string, string> = {
+  jacket: "🧥",
+  sweater: "🧶",
+  blanket: "🛏️",
+  shawl: "🧣",
+  socks: "🧦",
+};
+
+function formatText(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-type ListingForm=Omit<Listing,"id">
+async function readError(response: Response): Promise<string> {
+  try {
+    const data = await response.json();
 
-type AuthUser={
-  id:number
-  full_name:string
-  email:string
-  role:string
-}
-
-type AuthMode="login"|"register"
-
-const emptyForm:ListingForm={
-  title:"",
-  category:"jacket",
-  size:"M",
-  age_group:"adult",
-  gender:"unisex",
-  condition:"good",
-  quantity:1,
-  pickup_address:""
-}
-
-const categories=["jacket","sweater","blanket","shawl","socks"]
-
-const categoryEmojis:Record<string,string>={
-  jacket:"🧥",
-  sweater:"🧶",
-  blanket:"🛏️",
-  shawl:"🧣",
-  socks:"🧦"
-}
-
-function formatText(value:string){
-  return value.replace(/_/g," ").replace(/\b\w/g,letter=>letter.toUpperCase())
-}
-
-async function readError(response:Response):Promise<string>{
-  try{
-    const data=await response.json()
-    if(typeof data.detail==="string")return data.detail
-    if(Array.isArray(data.detail)){
-      return data.detail.map((item:{msg?:string})=>item.msg||"Invalid input").join(", ")
+    if (typeof data.detail === "string") {
+      return data.detail;
     }
-  }catch{
+
+    if (Array.isArray(data.detail)) {
+      return data.detail
+        .map((item: { msg?: string }) => item.msg || "Invalid input")
+        .join(", ");
+    }
+  } catch {
     // Handle non-JSON responses.
   }
-  return `Request failed (${response.status})`
+
+  return `Request failed (${response.status})`;
 }
 
-export default function App(){
-  const [listings,setListings]=useState<Listing[]>([])
-  const [selectedListing,setSelectedListing]=useState<Listing|null>(null)
-  const [form,setForm]=useState<ListingForm>({...emptyForm})
-  const [showForm,setShowForm]=useState(false)
-  const [editingId,setEditingId]=useState<number|null>(null)
-  const [search,setSearch]=useState("")
-  const [categoryFilter,setCategoryFilter]=useState("all")
-  const [loading,setLoading]=useState(true)
-  const [saving,setSaving]=useState(false)
-  const [deletingId,setDeletingId]=useState<number|null>(null)
-  const [deleteTarget,setDeleteTarget]=useState<Listing|null>(null)
-  const [message,setMessage]=useState("")
-  const [error,setError]=useState("")
+export default function App() {
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [form, setForm] = useState<ListingForm>({ ...emptyForm });
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Authentication states
-  const [authMode,setAuthMode]=useState<AuthMode|null>(null)
-  const [authName,setAuthName]=useState("")
-  const [authEmail,setAuthEmail]=useState("")
-  const [authPassword,setAuthPassword]=useState("")
-  const [authBusy,setAuthBusy]=useState(false)
-  const [authError,setAuthError]=useState("")
-  const [authUser,setAuthUser]=useState<AuthUser|null>(null)
-  const [checkingSession,setCheckingSession]=useState(true)
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
-  // Restore login after refreshing the browser tab.
-  useEffect(()=>{
-    const token=sessionStorage.getItem("warmshare_access_token")
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Listing | null>(null);
 
-    if(!token){
-      setCheckingSession(false)
-      return
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  // Authentication
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // Restore login when the browser refreshes.
+  useEffect(() => {
+    const token = sessionStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      setCheckingSession(false);
+      return;
     }
 
-    fetch("/api/auth/me",{
-      headers:{Authorization:`Bearer ${token}`}
+    fetch("/api/auth/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     })
-    .then(async response=>{
-      if(!response.ok)throw new Error("Invalid session")
-      const user:AuthUser=await response.json()
-      setAuthUser(user)
-    })
-    .catch(()=>{
-      sessionStorage.removeItem("warmshare_access_token")
-      setAuthUser(null)
-    })
-    .finally(()=>setCheckingSession(false))
-  },[])
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Invalid session");
+        }
 
-  // Load donation listings.
-  useEffect(()=>{
-    void loadListings()
-  },[])
+        const user: AuthUser = await response.json();
+        setAuthUser(user);
+      })
+      .catch(() => {
+        sessionStorage.removeItem(TOKEN_KEY);
+        setAuthUser(null);
+      })
+      .finally(() => setCheckingSession(false));
+  }, []);
 
-  function scrollToSection(id:string){
-    requestAnimationFrame(()=>{
-      requestAnimationFrame(()=>{
+  // Load donations.
+  useEffect(() => {
+    void loadListings();
+  }, []);
+
+  function scrollToSection(id: string) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
         document.getElementById(id)?.scrollIntoView({
-          behavior:"smooth",
-          block:"start"
-        })
-      })
-    })
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
   }
 
-  function openAuth(mode:AuthMode){
-    setAuthMode(mode)
-    setAuthName("")
-    setAuthEmail("")
-    setAuthPassword("")
-    setAuthError("")
-    setMessage("")
+  // Check whether the logged-in user owns a donation.
+  function isOwner(listing: Listing): boolean {
+    return (
+      authUser !== null &&
+      listing.owner_id !== null &&
+      listing.owner_id === authUser.id
+    );
   }
 
-  function logout(){
-    sessionStorage.removeItem("warmshare_access_token")
-    setAuthUser(null)
-    setAuthMode(null)
-    setMessage("You have logged out successfully.")
-    setError("")
+  function openAuth(mode: AuthMode) {
+    setAuthMode(mode);
+    setAuthName("");
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthError("");
+    setMessage("");
   }
 
-  // Register or login using FastAPI.
-  async function handleAuth(event:FormEvent<HTMLFormElement>){
-    event.preventDefault()
+  function logout() {
+    sessionStorage.removeItem(TOKEN_KEY);
 
-    if(!authMode)return
+    setAuthUser(null);
+    setAuthMode(null);
+    setShowForm(false);
+    setEditingId(null);
+    setDeleteTarget(null);
 
-    setAuthBusy(true)
-    setAuthError("")
+    setMessage("You have logged out successfully.");
+    setError("");
+  }
 
-    try{
-      if(authMode==="register"){
-        const registerResponse=await fetch("/api/auth/register",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({
-            full_name:authName,
-            email:authEmail,
-            password:authPassword
-          })
-        })
+  // Handle registration and login.
+  async function handleAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-        if(!registerResponse.ok){
-          throw new Error(await readError(registerResponse))
+    if (!authMode) return;
+
+    setAuthBusy(true);
+    setAuthError("");
+
+    try {
+      if (authMode === "register") {
+        const registerResponse = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            full_name: authName,
+            email: authEmail,
+            password: authPassword,
+          }),
+        });
+
+        if (!registerResponse.ok) {
+          throw new Error(await readError(registerResponse));
         }
       }
 
-      const loginResponse=await fetch("/api/auth/login",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          email:authEmail,
-          password:authPassword
-        })
-      })
+      const loginResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: authEmail,
+          password: authPassword,
+        }),
+      });
 
-      if(!loginResponse.ok){
-        throw new Error(await readError(loginResponse))
+      if (!loginResponse.ok) {
+        throw new Error(await readError(loginResponse));
       }
 
-      const loginData:{access_token:string;token_type:string}=
-        await loginResponse.json()
+      const loginData: {
+        access_token: string;
+        token_type: string;
+      } = await loginResponse.json();
 
-      const profileResponse=await fetch("/api/auth/me",{
-        headers:{
-          Authorization:`Bearer ${loginData.access_token}`
-        }
-      })
+      const profileResponse = await fetch("/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${loginData.access_token}`,
+        },
+      });
 
-      if(!profileResponse.ok){
-        throw new Error(await readError(profileResponse))
+      if (!profileResponse.ok) {
+        throw new Error(await readError(profileResponse));
       }
 
-      const user:AuthUser=await profileResponse.json()
+      const user: AuthUser = await profileResponse.json();
 
-      sessionStorage.setItem(
-        "warmshare_access_token",
-        loginData.access_token
-      )
+      sessionStorage.setItem(TOKEN_KEY, loginData.access_token);
 
-      setAuthUser(user)
-      setAuthMode(null)
-      setAuthPassword("")
-      setError("")
+      setAuthUser(user);
+      setAuthMode(null);
+      setAuthPassword("");
+      setError("");
+
       setMessage(
-        authMode==="register"
-          ?"Account created successfully!"
-          :`Welcome back, ${user.full_name}!`
-      )
-    }catch(err){
+        authMode === "register"
+          ? "Account created successfully!"
+          : `Welcome back, ${user.full_name}!`
+      );
+    } catch (err) {
       setAuthError(
-        err instanceof Error?err.message:"Authentication failed"
-      )
-    }finally{
-      setAuthBusy(false)
+        err instanceof Error ? err.message : "Authentication failed"
+      );
+    } finally {
+      setAuthBusy(false);
     }
   }
 
-  // READ: Get all donations.
-  async function loadListings(){
-    setLoading(true)
+  // Load all donation listings.
+  async function loadListings() {
+    setLoading(true);
 
-    try{
-      const response=await fetch("/api/listings")
+    try {
+      const response = await fetch("/api/listings");
 
-      if(!response.ok){
-        throw new Error(await readError(response))
+      if (!response.ok) {
+        throw new Error(await readError(response));
       }
 
-      const data:Listing[]=await response.json()
-      setListings(data)
-    }catch(err){
+      const data: Listing[] = await response.json();
+      setListings(data);
+    } catch (err) {
       setError(
-        err instanceof Error?err.message:"Unable to load donations"
-      )
-    }finally{
-      setLoading(false)
+        err instanceof Error ? err.message : "Unable to load donations"
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
-  function openCreateForm(){
-    setForm({...emptyForm})
-    setEditingId(null)
-    setSelectedListing(null)
-    setShowForm(true)
-    setError("")
-    setMessage("")
-    scrollToSection("donation-form")
+  // Open the donation form.
+  function openCreateForm() {
+    if (checkingSession) return;
+
+    if (!authUser) {
+      setError("");
+      openAuth("login");
+      return;
+    }
+
+    setForm({ ...emptyForm });
+    setEditingId(null);
+    setSelectedListing(null);
+    setShowForm(true);
+    setError("");
+    setMessage("");
+
+    scrollToSection("donation-form");
   }
 
-  function openEditForm(listing:Listing){
+  // Only the owner can open the edit form.
+  function openEditForm(listing: Listing) {
+    if (!isOwner(listing)) {
+      setError("You can only edit donations created by your account.");
+      return;
+    }
+
     setForm({
-      title:listing.title,
-      category:listing.category,
-      size:listing.size,
-      age_group:listing.age_group,
-      gender:listing.gender,
-      condition:listing.condition,
-      quantity:listing.quantity,
-      pickup_address:listing.pickup_address
-    })
+      title: listing.title,
+      category: listing.category,
+      size: listing.size,
+      age_group: listing.age_group,
+      gender: listing.gender,
+      condition: listing.condition,
+      quantity: listing.quantity,
+      pickup_address: listing.pickup_address,
+    });
 
-    setEditingId(listing.id)
-    setSelectedListing(null)
-    setShowForm(true)
-    setError("")
-    setMessage("")
-    scrollToSection("donation-form")
+    setEditingId(listing.id);
+    setSelectedListing(null);
+    setShowForm(true);
+    setError("");
+    setMessage("");
+
+    scrollToSection("donation-form");
   }
 
-  function closeForm(){
-    setShowForm(false)
-    setEditingId(null)
-    setForm({...emptyForm})
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ ...emptyForm });
   }
 
-  function updateForm(field:keyof ListingForm,value:string|number){
-    setForm(previous=>({
+  function updateForm(
+    field: keyof ListingForm,
+    value: string | number
+  ) {
+    setForm((previous) => ({
       ...previous,
-      [field]:value
-    }))
+      [field]: value,
+    }));
   }
 
-  // CREATE and UPDATE donations.
-  async function handleSubmit(event:FormEvent<HTMLFormElement>){
-    event.preventDefault()
+  // Create or update a donation using JWT authentication.
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-    setSaving(true)
-    setError("")
-    setMessage("")
+    const token = sessionStorage.getItem(TOKEN_KEY);
 
-    const isEditing=editingId!==null
-    const url=isEditing
-      ?`/api/listings/${editingId}`
-      :"/api/listings"
+    if (!authUser || !token) {
+      closeForm();
+      openAuth("login");
+      return;
+    }
 
-    try{
-      const response=await fetch(url,{
-        method:isEditing?"PUT":"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify(form)
-      })
+    if (editingId !== null) {
+      const existingListing = listings.find(
+        (listing) => listing.id === editingId
+      );
 
-      if(!response.ok){
-        throw new Error(await readError(response))
+      if (!existingListing || !isOwner(existingListing)) {
+        setError("You do not have permission to edit this donation.");
+        return;
+      }
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const isEditing = editingId !== null;
+
+    const url = isEditing
+      ? `/api/listings/${editingId}`
+      : "/api/listings";
+
+    try {
+      const response = await fetch(url, {
+        method: isEditing ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          sessionStorage.removeItem(TOKEN_KEY);
+          setAuthUser(null);
+          closeForm();
+          openAuth("login");
+          throw new Error("Your session expired. Please log in again.");
+        }
+
+        throw new Error(await readError(response));
       }
 
-      closeForm()
-
-      await loadListings()
+      closeForm();
+      await loadListings();
 
       setMessage(
         isEditing
-          ?"Donation updated successfully!"
-          :"Donation created successfully!"
-      )
+          ? "Donation updated successfully!"
+          : "Donation created successfully!"
+      );
 
-      scrollToSection("donations")
-    }catch(err){
+      scrollToSection("donations");
+    } catch (err) {
       setError(
-        err instanceof Error?err.message:"Unable to save donation"
-      )
-    }finally{
-      setSaving(false)
+        err instanceof Error ? err.message : "Unable to save donation"
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
-  // READ: Get one donation.
-  async function viewDetails(id:number){
-    setError("")
-    setMessage("")
+  // Read a single donation.
+  async function viewDetails(id: number) {
+    setError("");
+    setMessage("");
 
-    try{
-      const response=await fetch(`/api/listings/${id}`)
+    try {
+      const response = await fetch(`/api/listings/${id}`);
 
-      if(!response.ok){
-        throw new Error(await readError(response))
+      if (!response.ok) {
+        throw new Error(await readError(response));
       }
 
-      const data:Listing=await response.json()
+      const data: Listing = await response.json();
 
-      setSelectedListing(data)
-      setShowForm(false)
-      setEditingId(null)
-      scrollToSection("donation-details")
-    }catch(err){
+      setSelectedListing(data);
+      setShowForm(false);
+      setEditingId(null);
+
+      scrollToSection("donation-details");
+    } catch (err) {
       setError(
-        err instanceof Error?err.message:"Unable to load donation details"
-      )
+        err instanceof Error
+          ? err.message
+          : "Unable to load donation details"
+      );
     }
   }
 
-  function confirmDelete(listing:Listing){
-    setDeleteTarget(listing)
+  // Open the delete confirmation modal.
+  function confirmDelete(listing: Listing) {
+    if (!isOwner(listing)) {
+      setError("You can only delete donations created by your account.");
+      return;
+    }
+
+    setDeleteTarget(listing);
+    setError("");
   }
 
-  function cancelDelete(){
-    if(deletingId!==null)return
-    setDeleteTarget(null)
+  function cancelDelete() {
+    if (deletingId !== null) return;
+    setDeleteTarget(null);
   }
 
-  // DELETE donation.
-  async function deleteListing(){
-    if(!deleteTarget||deletingId!==null)return
+  // Delete an owned donation.
+  async function deleteListing() {
+    if (!deleteTarget || deletingId !== null) return;
 
-    const id=deleteTarget.id
+    const token = sessionStorage.getItem(TOKEN_KEY);
 
-    setDeletingId(id)
-    setError("")
-    setMessage("")
+    if (!authUser || !token) {
+      setDeleteTarget(null);
+      openAuth("login");
+      return;
+    }
 
-    try{
-      const response=await fetch(`/api/listings/${id}`,{
-        method:"DELETE"
-      })
+    if (!isOwner(deleteTarget)) {
+      setDeleteTarget(null);
+      setError("You do not have permission to delete this donation.");
+      return;
+    }
 
-      if(!response.ok){
-        throw new Error(await readError(response))
+    const id = deleteTarget.id;
+
+    setDeletingId(id);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(`/api/listings/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          sessionStorage.removeItem(TOKEN_KEY);
+          setAuthUser(null);
+          setDeleteTarget(null);
+          openAuth("login");
+          throw new Error("Your session expired. Please log in again.");
+        }
+
+        throw new Error(await readError(response));
       }
 
-      setDeleteTarget(null)
-      setSelectedListing(null)
+      setDeleteTarget(null);
+      setSelectedListing(null);
 
-      if(editingId===id){
-        closeForm()
+      if (editingId === id) {
+        closeForm();
       }
 
-      await loadListings()
-      setMessage("Donation deleted successfully!")
-    }catch(err){
+      await loadListings();
+
+      setMessage("Donation deleted successfully!");
+    } catch (err) {
       setError(
-        err instanceof Error?err.message:"Unable to delete donation"
-      )
-    }finally{
-      setDeletingId(null)
+        err instanceof Error ? err.message : "Unable to delete donation"
+      );
+    } finally {
+      setDeletingId(null);
     }
   }
 
-  const filteredListings=listings.filter(listing=>{
-    const keyword=search.trim().toLowerCase()
+  // Search and filter donations.
+  const filteredListings = listings.filter((listing) => {
+    const keyword = search.trim().toLowerCase();
 
-    const matchesSearch=
-      listing.title.toLowerCase().includes(keyword)||
-      listing.pickup_address.toLowerCase().includes(keyword)
+    const matchesSearch =
+      listing.title.toLowerCase().includes(keyword) ||
+      listing.pickup_address.toLowerCase().includes(keyword);
 
-    const matchesCategory=
-      categoryFilter==="all"||
-      listing.category.toLowerCase()===categoryFilter
+    const matchesCategory =
+      categoryFilter === "all" ||
+      listing.category.toLowerCase() === categoryFilter;
 
-    return matchesSearch&&matchesCategory
-  })
+    return matchesSearch && matchesCategory;
+  });
 
-  const totalItems=listings.reduce(
-    (total,listing)=>total+listing.quantity,
+  const totalItems = listings.reduce(
+    (total, listing) => total + listing.quantity,
     0
-  )
+  );
 
-  return(
+  return (
     <div className="app">
-
       {/* Navigation */}
       <header className="navbar">
         <div className="nav-container">
@@ -437,14 +567,15 @@ export default function App(){
           </nav>
 
           <div className="nav-actions">
-            {checkingSession?(
+            {checkingSession ? (
               <span className="auth-loading">Checking account...</span>
-            ):authUser?(
+            ) : authUser ? (
               <>
                 <div className="user-profile">
                   <span className="user-avatar">
                     {authUser.full_name.charAt(0).toUpperCase()}
                   </span>
+
                   <div className="user-info">
                     <strong>{authUser.full_name}</strong>
                     <small>{authUser.email}</small>
@@ -459,12 +590,12 @@ export default function App(){
                   Logout
                 </button>
               </>
-            ):(
+            ) : (
               <>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  onClick={()=>openAuth("login")}
+                  onClick={() => openAuth("login")}
                 >
                   Login
                 </button>
@@ -472,7 +603,7 @@ export default function App(){
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={()=>openAuth("register")}
+                  onClick={() => openAuth("register")}
                 >
                   Register
                 </button>
@@ -483,6 +614,7 @@ export default function App(){
               type="button"
               className="btn btn-primary"
               onClick={openCreateForm}
+              disabled={checkingSession}
             >
               + Add Donation
             </button>
@@ -491,7 +623,6 @@ export default function App(){
       </header>
 
       <main className="main-content">
-
         {/* Hero Section */}
         <section className="hero" id="home">
           <div className="hero-content">
@@ -501,7 +632,7 @@ export default function App(){
 
             <h1>
               Share warmth.
-              <br/>
+              <br />
               <span>Spread kindness.</span>
             </h1>
 
@@ -515,6 +646,7 @@ export default function App(){
               type="button"
               className="btn btn-primary"
               onClick={openCreateForm}
+              disabled={checkingSession}
             >
               + Donate Clothes
             </button>
@@ -556,37 +688,37 @@ export default function App(){
         </section>
 
         {/* Messages */}
-        {message&&(
+        {message && (
           <div className="alert alert-success" role="status">
             {message}
           </div>
         )}
 
-        {error&&(
+        {error && (
           <div className="alert alert-error" role="alert">
             {error}
           </div>
         )}
 
         {/* Donation Form */}
-        {showForm&&(
+        {showForm && authUser && (
           <section
             className="form-section"
             id="donation-form"
-            style={{scrollMarginTop:110}}
+            style={{ scrollMarginTop: 110 }}
           >
             <div className="section-heading">
               <div>
                 <span className="section-label">
-                  {editingId!==null
-                    ?"UPDATE DONATION"
-                    :"SHARE YOUR WARMTH"}
+                  {editingId !== null
+                    ? "UPDATE DONATION"
+                    : "SHARE YOUR WARMTH"}
                 </span>
 
                 <h2>
-                  {editingId!==null
-                    ?"Edit Donation"
-                    :"Add a New Donation"}
+                  {editingId !== null
+                    ? "Edit Donation"
+                    : "Add a New Donation"}
                 </h2>
 
                 <p>
@@ -604,10 +736,7 @@ export default function App(){
               </button>
             </div>
 
-            <form
-              className="donation-form"
-              onSubmit={handleSubmit}
-            >
+            <form className="donation-form" onSubmit={handleSubmit}>
               <div className="form-group full-width">
                 <label htmlFor="title">Donation Title</label>
                 <input
@@ -615,10 +744,12 @@ export default function App(){
                   type="text"
                   required
                   minLength={3}
-                  maxLength={120}
+                  maxLength={150}
                   placeholder="Example: Warm Winter Jacket"
                   value={form.title}
-                  onChange={event=>updateForm("title",event.target.value)}
+                  onChange={(event) =>
+                    updateForm("title", event.target.value)
+                  }
                 />
               </div>
 
@@ -627,9 +758,11 @@ export default function App(){
                 <select
                   id="category"
                   value={form.category}
-                  onChange={event=>updateForm("category",event.target.value)}
+                  onChange={(event) =>
+                    updateForm("category", event.target.value)
+                  }
                 >
-                  {categories.map(category=>(
+                  {categories.map((category) => (
                     <option key={category} value={category}>
                       {formatText(category)}
                     </option>
@@ -642,7 +775,9 @@ export default function App(){
                 <select
                   id="size"
                   value={form.size}
-                  onChange={event=>updateForm("size",event.target.value)}
+                  onChange={(event) =>
+                    updateForm("size", event.target.value)
+                  }
                 >
                   <option value="free">Free Size</option>
                   <option value="XS">XS</option>
@@ -659,7 +794,9 @@ export default function App(){
                 <select
                   id="age_group"
                   value={form.age_group}
-                  onChange={event=>updateForm("age_group",event.target.value)}
+                  onChange={(event) =>
+                    updateForm("age_group", event.target.value)
+                  }
                 >
                   <option value="child">Child</option>
                   <option value="adult">Adult</option>
@@ -671,7 +808,9 @@ export default function App(){
                 <select
                   id="gender"
                   value={form.gender}
-                  onChange={event=>updateForm("gender",event.target.value)}
+                  onChange={(event) =>
+                    updateForm("gender", event.target.value)
+                  }
                 >
                   <option value="unisex">Unisex</option>
                   <option value="male">Male</option>
@@ -684,9 +823,11 @@ export default function App(){
                 <select
                   id="condition"
                   value={form.condition}
-                  onChange={event=>updateForm("condition",event.target.value)}
+                  onChange={(event) =>
+                    updateForm("condition", event.target.value)
+                  }
                 >
-                  <option value="like new">Like New</option>
+                  <option value="like_new">Like New</option>
                   <option value="good">Good</option>
                   <option value="worn">Worn</option>
                 </select>
@@ -701,10 +842,9 @@ export default function App(){
                   min={1}
                   step={1}
                   value={form.quantity}
-                  onChange={event=>updateForm(
-                    "quantity",
-                    Number(event.target.value)
-                  )}
+                  onChange={(event) =>
+                    updateForm("quantity", Number(event.target.value))
+                  }
                 />
               </div>
 
@@ -715,14 +855,19 @@ export default function App(){
                 <textarea
                   id="pickup_address"
                   required
-                  minLength={3}
+                  minLength={5}
+                  maxLength={255}
                   placeholder="Example: Uttara, Dhaka"
                   value={form.pickup_address}
-                  onChange={event=>updateForm(
-                    "pickup_address",
-                    event.target.value
-                  )}
+                  onChange={(event) =>
+                    updateForm("pickup_address", event.target.value)
+                  }
                 />
+                <small>
+                  This address is currently public.
+                  For testing, use a general or fictional location,
+                  not a private home address.
+                </small>
               </div>
 
               <div className="form-actions full-width">
@@ -740,10 +885,10 @@ export default function App(){
                   disabled={saving}
                 >
                   {saving
-                    ?"Saving..."
-                    :editingId!==null
-                    ?"Update Donation"
-                    :"Create Donation"}
+                    ? "Saving..."
+                    : editingId !== null
+                    ? "Update Donation"
+                    : "Create Donation"}
                 </button>
               </div>
             </form>
@@ -751,11 +896,11 @@ export default function App(){
         )}
 
         {/* Single Donation Details */}
-        {selectedListing&&(
+        {selectedListing && (
           <section
             className="details-section"
             id="donation-details"
-            style={{scrollMarginTop:110}}
+            style={{ scrollMarginTop: 110 }}
           >
             <div className="section-heading">
               <div>
@@ -768,7 +913,7 @@ export default function App(){
               <button
                 type="button"
                 className="btn btn-outline"
-                onClick={()=>setSelectedListing(null)}
+                onClick={() => setSelectedListing(null)}
               >
                 Close
               </button>
@@ -778,54 +923,72 @@ export default function App(){
               <p>
                 <strong>ID:</strong> {selectedListing.id}
               </p>
+
               <p>
                 <strong>Category:</strong>{" "}
                 {formatText(selectedListing.category)}
               </p>
+
               <p>
                 <strong>Size:</strong>{" "}
                 {formatText(selectedListing.size)}
               </p>
+
               <p>
                 <strong>Age Group:</strong>{" "}
                 {formatText(selectedListing.age_group)}
               </p>
+
               <p>
                 <strong>Gender:</strong>{" "}
                 {formatText(selectedListing.gender)}
               </p>
+
               <p>
                 <strong>Condition:</strong>{" "}
                 {formatText(selectedListing.condition)}
               </p>
+
               <p>
                 <strong>Quantity:</strong>{" "}
                 {selectedListing.quantity}
               </p>
+
               <p>
                 <strong>Pickup Address:</strong>{" "}
                 {selectedListing.pickup_address}
               </p>
+
+              <p>
+                <strong>Ownership:</strong>{" "}
+                {selectedListing.owner_id === null
+                  ? "Legacy donation"
+                  : isOwner(selectedListing)
+                  ? "Your donation"
+                  : "Community donation"}
+              </p>
             </div>
 
-            <div className="card-actions">
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={()=>openEditForm(selectedListing)}
-              >
-                Edit Donation
-              </button>
+            {isOwner(selectedListing) && (
+              <div className="card-actions">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => openEditForm(selectedListing)}
+                >
+                  Edit Donation
+                </button>
 
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={deletingId===selectedListing.id}
-                onClick={()=>confirmDelete(selectedListing)}
-              >
-                Delete Donation
-              </button>
-            </div>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={deletingId === selectedListing.id}
+                  onClick={() => confirmDelete(selectedListing)}
+                >
+                  Delete Donation
+                </button>
+              </div>
+            )}
           </section>
         )}
 
@@ -833,7 +996,7 @@ export default function App(){
         <section
           className="donations-section"
           id="donations"
-          style={{scrollMarginTop:110}}
+          style={{ scrollMarginTop: 110 }}
         >
           <div className="section-heading">
             <div>
@@ -857,17 +1020,19 @@ export default function App(){
               placeholder="Search by title or pickup location..."
               aria-label="Search donations"
               value={search}
-              onChange={event=>setSearch(event.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
             />
 
             <select
               aria-label="Filter by category"
               value={categoryFilter}
-              onChange={event=>setCategoryFilter(event.target.value)}
+              onChange={(event) =>
+                setCategoryFilter(event.target.value)
+              }
             >
               <option value="all">All Categories</option>
 
-              {categories.map(category=>(
+              {categories.map((category) => (
                 <option key={category} value={category}>
                   {formatText(category)}
                 </option>
@@ -877,15 +1042,15 @@ export default function App(){
             <button
               type="button"
               className="btn btn-outline"
-              onClick={()=>void loadListings()}
+              onClick={() => void loadListings()}
               disabled={loading}
             >
-              {loading?"Loading...":"Refresh"}
+              {loading ? "Loading..." : "Refresh"}
             </button>
           </div>
 
           {/* Loading and Empty States */}
-          {loading&&listings.length===0?(
+          {loading && listings.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">⏳</span>
               <h3>Loading donations...</h3>
@@ -893,7 +1058,7 @@ export default function App(){
                 Please wait while we retrieve the listings.
               </p>
             </div>
-          ):filteredListings.length===0?(
+          ) : filteredListings.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">📦</span>
               <h3>No donations found</h3>
@@ -901,9 +1066,9 @@ export default function App(){
                 Try another search or add a new donation.
               </p>
             </div>
-          ):(
+          ) : (
             <div className="donation-grid">
-              {filteredListings.map(listing=>(
+              {filteredListings.map((listing) => (
                 <article
                   className="donation-card"
                   key={listing.id}
@@ -916,7 +1081,7 @@ export default function App(){
                     <span className="card-emoji">
                       {categoryEmojis[
                         listing.category.toLowerCase()
-                      ]||"📦"}
+                      ] || "📦"}
                     </span>
                   </div>
 
@@ -937,33 +1102,45 @@ export default function App(){
                       Quantity: {listing.quantity}
                     </span>
 
+                    {isOwner(listing) && (
+                      <p className="card-meta">
+                        Your donation
+                      </p>
+                    )}
+
                     <div className="card-actions">
                       <button
                         type="button"
                         className="btn btn-primary"
-                        onClick={()=>void viewDetails(listing.id)}
+                        onClick={() =>
+                          void viewDetails(listing.id)
+                        }
                       >
                         View Details
                       </button>
 
-                      <button
-                        type="button"
-                        className="btn btn-outline"
-                        onClick={()=>openEditForm(listing)}
-                      >
-                        Edit
-                      </button>
+                      {isOwner(listing) && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => openEditForm(listing)}
+                          >
+                            Edit
+                          </button>
 
-                      <button
-                        type="button"
-                        className="btn btn-danger"
-                        disabled={deletingId===listing.id}
-                        onClick={()=>confirmDelete(listing)}
-                      >
-                        {deletingId===listing.id
-                          ?"Deleting..."
-                          :"Delete"}
-                      </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            disabled={deletingId === listing.id}
+                            onClick={() => confirmDelete(listing)}
+                          >
+                            {deletingId === listing.id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -974,15 +1151,15 @@ export default function App(){
       </main>
 
       {/* Registration and Login Modal */}
-      {authMode&&(
+      {authMode && (
         <div
           className="modal-overlay"
-          onMouseDown={event=>{
-            if(
-              event.target===event.currentTarget&&
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
               !authBusy
-            ){
-              setAuthMode(null)
+            ) {
+              setAuthMode(null);
             }
           }}
         >
@@ -999,15 +1176,15 @@ export default function App(){
                 </span>
 
                 <h2 id="auth-title">
-                  {authMode==="register"
-                    ?"Create an Account"
-                    :"Welcome Back"}
+                  {authMode === "register"
+                    ? "Create an Account"
+                    : "Welcome Back"}
                 </h2>
 
                 <p>
-                  {authMode==="register"
-                    ?"Join the community and share warmth."
-                    :"Log in to your WarmShare account."}
+                  {authMode === "register"
+                    ? "Join the community and share warmth."
+                    : "Log in to your WarmShare account."}
                 </p>
               </div>
 
@@ -1016,13 +1193,13 @@ export default function App(){
                 className="auth-close"
                 aria-label="Close"
                 disabled={authBusy}
-                onClick={()=>setAuthMode(null)}
+                onClick={() => setAuthMode(null)}
               >
                 ×
               </button>
             </div>
 
-            {authError&&(
+            {authError && (
               <div className="alert alert-error" role="alert">
                 {authError}
               </div>
@@ -1032,11 +1209,12 @@ export default function App(){
               className="auth-form"
               onSubmit={handleAuth}
             >
-              {authMode==="register"&&(
+              {authMode === "register" && (
                 <div className="form-group">
                   <label htmlFor="auth-name">
                     Full Name
                   </label>
+
                   <input
                     id="auth-name"
                     type="text"
@@ -1045,7 +1223,9 @@ export default function App(){
                     maxLength={100}
                     required
                     value={authName}
-                    onChange={event=>setAuthName(event.target.value)}
+                    onChange={(event) =>
+                      setAuthName(event.target.value)
+                    }
                   />
                 </div>
               )}
@@ -1054,6 +1234,7 @@ export default function App(){
                 <label htmlFor="auth-email">
                   Email Address
                 </label>
+
                 <input
                   id="auth-email"
                   type="email"
@@ -1061,7 +1242,9 @@ export default function App(){
                   maxLength={255}
                   required
                   value={authEmail}
-                  onChange={event=>setAuthEmail(event.target.value)}
+                  onChange={(event) =>
+                    setAuthEmail(event.target.value)
+                  }
                 />
               </div>
 
@@ -1069,24 +1252,27 @@ export default function App(){
                 <label htmlFor="auth-password">
                   Password
                 </label>
+
                 <input
                   id="auth-password"
                   type="password"
                   autoComplete={
-                    authMode==="register"
-                      ?"new-password"
-                      :"current-password"
+                    authMode === "register"
+                      ? "new-password"
+                      : "current-password"
                   }
                   minLength={
-                    authMode==="register"?8:undefined
+                    authMode === "register" ? 8 : undefined
                   }
                   maxLength={128}
                   required
                   value={authPassword}
-                  onChange={event=>setAuthPassword(event.target.value)}
+                  onChange={(event) =>
+                    setAuthPassword(event.target.value)
+                  }
                 />
 
-                {authMode==="register"&&(
+                {authMode === "register" && (
                   <small>
                     Password must contain at least 8 characters.
                   </small>
@@ -1099,28 +1285,33 @@ export default function App(){
                 disabled={authBusy}
               >
                 {authBusy
-                  ?"Please wait..."
-                  :authMode==="register"
-                  ?"Create Account"
-                  :"Login"}
+                  ? "Please wait..."
+                  : authMode === "register"
+                  ? "Create Account"
+                  : "Login"}
               </button>
             </form>
 
             <p className="auth-switch">
-              {authMode==="register"
-                ?"Already have an account?"
-                :"New to WarmShare?"}
+              {authMode === "register"
+                ? "Already have an account?"
+                : "New to WarmShare?"}
               {" "}
+
               <button
                 type="button"
                 disabled={authBusy}
-                onClick={()=>openAuth(
-                  authMode==="register"
-                    ?"login"
-                    :"register"
-                )}
+                onClick={() =>
+                  openAuth(
+                    authMode === "register"
+                      ? "login"
+                      : "register"
+                  )
+                }
               >
-                {authMode==="register"?"Login":"Register"}
+                {authMode === "register"
+                  ? "Login"
+                  : "Register"}
               </button>
             </p>
           </section>
@@ -1128,7 +1319,7 @@ export default function App(){
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget&&(
+      {deleteTarget && (
         <div className="modal-overlay">
           <div
             className="delete-modal"
@@ -1148,7 +1339,7 @@ export default function App(){
             <p id="delete-modal-description">
               Are you sure you want to delete
               <strong> {deleteTarget.title}</strong>?
-              <br/>
+              <br />
               This action cannot be undone.
             </p>
 
@@ -1156,7 +1347,7 @@ export default function App(){
               <button
                 type="button"
                 className="btn btn-outline"
-                disabled={deletingId!==null}
+                disabled={deletingId !== null}
                 onClick={cancelDelete}
               >
                 Cancel
@@ -1165,12 +1356,12 @@ export default function App(){
               <button
                 type="button"
                 className="btn btn-confirm-delete"
-                disabled={deletingId!==null}
-                onClick={()=>void deleteListing()}
+                disabled={deletingId !== null}
+                onClick={() => void deleteListing()}
               >
-                {deletingId!==null
-                  ?"Deleting..."
-                  :"Yes, Delete"}
+                {deletingId !== null
+                  ? "Deleting..."
+                  : "Yes, Delete"}
               </button>
             </div>
           </div>
@@ -1187,5 +1378,5 @@ export default function App(){
         </p>
       </footer>
     </div>
-  )
+  );
 }

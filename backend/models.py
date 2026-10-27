@@ -1,8 +1,8 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # Support both local development and Vercel deployment
 try:
@@ -73,12 +73,28 @@ class Listing(Base):
         nullable=False,
     )
 
+    # User who created the donation
+    # Nullable to preserve existing donations
+    owner_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Date and time when the listing was created
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+    # Relationship to the registered user
+    owner: Mapped["User | None"] = relationship(
+        "User",
+        back_populates="listings",
+    )
+
 
 # Database model for registered WarmShare users
 class User(Base):
@@ -123,4 +139,11 @@ class User(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+    # Donations created by this user
+    listings: Mapped[list["Listing"]] = relationship(
+        "Listing",
+        back_populates="owner",
+        passive_deletes=True,
     )
