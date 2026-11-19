@@ -4,13 +4,26 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from backend.models import User
-from backend.schemas import UserCreate, UserLogin
-from backend.security import (
-    hash_password,
-    verify_password,
-    create_access_token,
-)
+# Support both local development and Vercel deployment
+try:
+    from backend.models import User
+    from backend.schemas import UserCreate, UserLogin
+    from backend.security import (
+        hash_password,
+        verify_password,
+        create_access_token,
+    )
+except ModuleNotFoundError as error:
+    if error.name != "backend":
+        raise
+
+    from models import User
+    from schemas import UserCreate, UserLogin
+    from security import (
+        hash_password,
+        verify_password,
+        create_access_token,
+    )
 
 
 # Register a new user

@@ -2,17 +2,34 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from backend.dependencies import get_db, get_current_user
-from backend.models import User
-from backend.schemas import (
-    UserCreate,
-    UserResponse,
-    UserLogin,
-)
-from backend.services.auth_service import (
-    register_user_service,
-    login_user_service,
-)
+# Support both local development and Vercel deployment
+try:
+    from backend.dependencies import get_db, get_current_user
+    from backend.models import User
+    from backend.schemas import (
+        UserCreate,
+        UserResponse,
+        UserLogin,
+    )
+    from backend.services.auth_service import (
+        register_user_service,
+        login_user_service,
+    )
+except ModuleNotFoundError as error:
+    if error.name != "backend":
+        raise
+
+    from dependencies import get_db, get_current_user
+    from models import User
+    from schemas import (
+        UserCreate,
+        UserResponse,
+        UserLogin,
+    )
+    from services.auth_service import (
+        register_user_service,
+        login_user_service,
+    )
 
 
 router = APIRouter(

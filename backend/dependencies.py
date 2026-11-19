@@ -6,9 +6,18 @@ from fastapi.security import (
 )
 from sqlalchemy.orm import Session
 
-from backend.database import get_session_factory
-from backend.models import User
-from backend.security import decode_access_token
+# Support both local development and Vercel deployment
+try:
+    from backend.database import get_session_factory
+    from backend.models import User
+    from backend.security import decode_access_token
+except ModuleNotFoundError as error:
+    if error.name != "backend":
+        raise
+
+    from database import get_session_factory
+    from models import User
+    from security import decode_access_token
 
 
 # JWT authentication scheme
@@ -50,9 +59,7 @@ def get_current_user(
         )
 
     # Decode and verify JWT
-    user_id = decode_access_token(
-        credentials.credentials
-    )
+    user_id = decode_access_token(credentials.credentials)
 
     if user_id is None:
         raise HTTPException(

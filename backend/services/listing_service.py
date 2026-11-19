@@ -3,8 +3,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from backend.models import Listing, User
-from backend.schemas import ListingCreate, ListingUpdate
+# Support both local development and Vercel deployment
+try:
+    from backend.models import Listing, User
+    from backend.schemas import ListingCreate, ListingUpdate
+except ModuleNotFoundError as error:
+    if error.name != "backend":
+        raise
+
+    from models import Listing, User
+    from schemas import ListingCreate, ListingUpdate
 
 
 # Verify donation ownership

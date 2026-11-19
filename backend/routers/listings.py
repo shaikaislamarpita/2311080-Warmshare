@@ -2,20 +2,40 @@
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-from backend.dependencies import get_db, get_current_user
-from backend.models import User
-from backend.schemas import (
-    ListingCreate,
-    ListingUpdate,
-    ListingResponse,
-)
-from backend.services.listing_service import (
-    create_listing_service,
-    get_all_listings_service,
-    get_single_listing_service,
-    update_listing_service,
-    delete_listing_service,
-)
+# Support both local development and Vercel deployment
+try:
+    from backend.dependencies import get_db, get_current_user
+    from backend.models import User
+    from backend.schemas import (
+        ListingCreate,
+        ListingUpdate,
+        ListingResponse,
+    )
+    from backend.services.listing_service import (
+        create_listing_service,
+        get_all_listings_service,
+        get_single_listing_service,
+        update_listing_service,
+        delete_listing_service,
+    )
+except ModuleNotFoundError as error:
+    if error.name != "backend":
+        raise
+
+    from dependencies import get_db, get_current_user
+    from models import User
+    from schemas import (
+        ListingCreate,
+        ListingUpdate,
+        ListingResponse,
+    )
+    from services.listing_service import (
+        create_listing_service,
+        get_all_listings_service,
+        get_single_listing_service,
+        update_listing_service,
+        delete_listing_service,
+    )
 
 
 router = APIRouter(
