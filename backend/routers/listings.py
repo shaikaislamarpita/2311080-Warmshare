@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-# Support both local development and Vercel deployment
+# Support both local development and Vercel deployment.
 try:
     from backend.dependencies import get_db, get_current_user
     from backend.models import User
@@ -10,6 +10,10 @@ try:
         ListingCreate,
         ListingUpdate,
         ListingResponse,
+        ListingReportCreate,
+        ListingReportResponse,
+        ListingModerationUpdate,
+        ReportReviewUpdate,
     )
     from backend.services.listing_service import (
         create_listing_service,
@@ -18,6 +22,20 @@ try:
         update_listing_service,
         delete_listing_service,
     )
+    from backend.services.moderation_service import (
+        create_listing_report_service,
+        get_moderation_reports_service,
+        moderate_listing_service,
+        review_listing_report_service,
+    )
+    from backend.permissions import (
+        PERMISSION_CREATE_LISTING,
+        PERMISSION_UPDATE_OWN_LISTING,
+        PERMISSION_DELETE_OWN_LISTING,
+        PERMISSION_MODERATE_CONTENT,
+    )
+    from backend.rbac import require_permission
+
 except ModuleNotFoundError as error:
     if error.name != "backend":
         raise
@@ -28,6 +46,10 @@ except ModuleNotFoundError as error:
         ListingCreate,
         ListingUpdate,
         ListingResponse,
+        ListingReportCreate,
+        ListingReportResponse,
+        ListingModerationUpdate,
+        ReportReviewUpdate,
     )
     from services.listing_service import (
         create_listing_service,
@@ -36,6 +58,19 @@ except ModuleNotFoundError as error:
         update_listing_service,
         delete_listing_service,
     )
+    from services.moderation_service import (
+        create_listing_report_service,
+        get_moderation_reports_service,
+        moderate_listing_service,
+        review_listing_report_service,
+    )
+    from permissions import (
+        PERMISSION_CREATE_LISTING,
+        PERMISSION_UPDATE_OWN_LISTING,
+        PERMISSION_DELETE_OWN_LISTING,
+        PERMISSION_MODERATE_CONTENT,
+    )
+    from rbac import require_permission
 
 
 router = APIRouter(
@@ -44,7 +79,11 @@ router = APIRouter(
 )
 
 
-# 1. Create donation
+# ========================================
+# EXISTING DONATION CRUD ENDPOINTS
+# ========================================
+
+# 1. Create donation.
 @router.post(
     "",
     response_model=ListingResponse,
@@ -53,7 +92,9 @@ router = APIRouter(
 def create_listing(
     listing: ListingCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_permission(PERMISSION_CREATE_LISTING)
+    ),
 ):
     return create_listing_service(
         listing,
@@ -62,7 +103,7 @@ def create_listing(
     )
 
 
-# 2. Read all donations
+# 2. Read all donations.
 @router.get(
     "",
     response_model=list[ListingResponse],
@@ -73,7 +114,7 @@ def get_all_listings(
     return get_all_listings_service(db)
 
 
-# 3. Read single donation
+# 3. Read single donation.
 @router.get(
     "/{listing_id}",
     response_model=ListingResponse,
@@ -88,7 +129,7 @@ def get_single_listing(
     )
 
 
-# 4. Update donation
+# 4. Update donation.
 @router.put(
     "/{listing_id}",
     response_model=ListingResponse,
@@ -97,7 +138,9 @@ def update_listing(
     listing_id: int,
     updated_data: ListingUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_permission(PERMISSION_UPDATE_OWN_LISTING)
+    ),
 ):
     return update_listing_service(
         listing_id,
@@ -107,7 +150,7 @@ def update_listing(
     )
 
 
-# 5. Delete donation
+# 5. Delete donation.
 @router.delete(
     "/{listing_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -115,7 +158,9 @@ def update_listing(
 def delete_listing(
     listing_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_permission(PERMISSION_DELETE_OWN_LISTING)
+    ),
 ):
     delete_listing_service(
         listing_id,
@@ -125,4 +170,87 @@ def delete_listing(
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT
+    )
+
+
+# ========================================
+# REPORTING AND MODERATION ENDPOINTS
+# ========================================
+
+# 6. Submit a donation report.
+@router.post(
+    "/{listing_id}/reports",
+    response_model=ListingReportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_listing_report(
+    listing_id: int,
+    report_data: ListingReportCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return create_listing_report_service(
+        listing_id,
+        report_data,
+        db,
+        current_user,
+    )
+
+
+# 7. View pending reports.
+# Accessible to Moderators and Admins.
+@router.get(
+    "/moderation/reports",
+    response_model=list[ListingReportResponse],
+)
+def get_moderation_reports(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(PERMISSION_MODERATE_CONTENT)
+    ),
+):
+    return get_moderation_reports_service(db)
+
+
+# 8. Hide or restore a donation.
+# Accessible to Moderators and Admins.
+@router.patch(
+    "/{listing_id}/moderation",
+    response_model=ListingResponse,
+)
+def moderate_listing(
+    listing_id: int,
+    moderation_data: ListingModerationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(PERMISSION_MODERATE_CONTENT)
+    ),
+):
+    return moderate_listing_service(
+        listing_id,
+        moderation_data,
+        db,
+        current_user,
+    )
+
+
+# 9. Resolve or dismiss a report.
+# Accessible to Moderators and Admins.
+@router.patch(
+    "/moderation/reports/{report_id}",
+    response_model=ListingReportResponse,
+)
+def review_listing_report(
+    report_id: int,
+    review_data: ReportReviewUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(PERMISSION_MODERATE_CONTENT)
+    ),
+):
+    return review_listing_report_service(
+        report_id,
+        review_data,
+        db,
+        current_user,
     )

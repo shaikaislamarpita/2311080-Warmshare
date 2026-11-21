@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-# Support both local development and Vercel deployment
+# Support both local development and Vercel deployment.
 try:
     from backend.models import Listing, User
     from backend.schemas import ListingCreate, ListingUpdate
@@ -15,7 +15,7 @@ except ModuleNotFoundError as error:
     from schemas import ListingCreate, ListingUpdate
 
 
-# Verify donation ownership
+# Verify donation ownership.
 def verify_listing_owner(
     listing: Listing,
     current_user: User,
@@ -44,7 +44,7 @@ def verify_listing_owner(
         )
 
 
-# Create a new donation
+# Create a new donation.
 def create_listing_service(
     listing: ListingCreate,
     db: Session,
@@ -62,12 +62,14 @@ def create_listing_service(
     return new_listing
 
 
-# Get all donations
+# Get all visible donations.
 def get_all_listings_service(
     db: Session,
 ):
-    statement = select(Listing).order_by(
-        Listing.id.desc()
+    statement = (
+        select(Listing)
+        .where(Listing.moderation_status == "visible")
+        .order_by(Listing.id.desc())
     )
 
     listings = db.scalars(statement).all()
@@ -75,12 +77,17 @@ def get_all_listings_service(
     return listings
 
 
-# Get one donation
+# Get one visible donation.
 def get_single_listing_service(
     listing_id: int,
     db: Session,
 ):
-    listing = db.get(Listing, listing_id)
+    statement = select(Listing).where(
+        Listing.id == listing_id,
+        Listing.moderation_status == "visible",
+    )
+
+    listing = db.scalars(statement).first()
 
     if listing is None:
         raise HTTPException(
@@ -91,7 +98,7 @@ def get_single_listing_service(
     return listing
 
 
-# Update an existing donation
+# Update an existing donation.
 def update_listing_service(
     listing_id: int,
     updated_data: ListingUpdate,
@@ -133,7 +140,7 @@ def update_listing_service(
     return listing
 
 
-# Delete an existing donation
+# Delete an existing donation.
 def delete_listing_service(
     listing_id: int,
     db: Session,

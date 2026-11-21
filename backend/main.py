@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 try:
     from backend.routers.auth import router as auth_router
     from backend.routers.listings import router as listings_router
+    from backend.routers.admin import router as admin_router
 
 except ModuleNotFoundError as error:
     if error.name != "backend":
@@ -16,11 +17,12 @@ except ModuleNotFoundError as error:
 
     from routers.auth import router as auth_router
     from routers.listings import router as listings_router
+    from routers.admin import router as admin_router
 
 
 app = FastAPI(
     title="WarmShare API",
-    description="REST API documentation for WarmShare Donation Management MVP",
+    description="REST API documentation for WarmShare Donation Management",
     version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -31,6 +33,7 @@ app = FastAPI(
 # Register API routers
 app.include_router(auth_router)
 app.include_router(listings_router)
+app.include_router(admin_router)
 
 
 # Health check

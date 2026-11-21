@@ -17,7 +17,13 @@ import {
   registerUser,
   loginUser,
   getCurrentUser,
+  logoutUser,
 } from "../services/authService";
+
+import {
+  refreshAccessToken,
+  clearStoredToken,
+} from "../services/api";
 
 import {
   getListings,
@@ -64,29 +70,34 @@ export default function HomePage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
 
-  // Restore login when the browser refreshes.
+  // Restore login using the refresh cookie when the browser reloads.
   useEffect(() => {
-    const token = sessionStorage.getItem(TOKEN_KEY);
+    async function restoreSession() {
+      try {
+        const token = await refreshAccessToken();
 
-    if (!token) {
-      setCheckingSession(false);
-      return;
-    }
+        if (!token) {
+          setAuthUser(null);
+          return;
+        }
 
-    getCurrentUser(token)
-      .then(async (response) => {
+        const response = await getCurrentUser(token);
+
         if (!response.ok) {
           throw new Error("Invalid session");
         }
 
         const user: AuthUser = await response.json();
         setAuthUser(user);
-      })
-      .catch(() => {
-        sessionStorage.removeItem(TOKEN_KEY);
+      } catch {
+        clearStoredToken();
         setAuthUser(null);
-      })
-      .finally(() => setCheckingSession(false));
+      } finally {
+        setCheckingSession(false);
+      }
+    }
+
+    restoreSession();
   }, []);
 
   // Load donations.
@@ -123,17 +134,39 @@ export default function HomePage() {
     setMessage("");
   }
 
-  function logout() {
-    sessionStorage.removeItem(TOKEN_KEY);
+  async function logout() {
+    let logoutConfirmed = false;
 
-    setAuthUser(null);
-    setAuthMode(null);
-    setShowForm(false);
-    setEditingId(null);
-    setDeleteTarget(null);
+    try {
+      const response = await logoutUser();
 
-    setMessage("You have logged out successfully.");
-    setError("");
+      if (!response.ok) {
+        throw new Error("Server logout could not be confirmed.");
+      }
+
+      logoutConfirmed = true;
+    } catch {
+      logoutConfirmed = false;
+    } finally {
+      clearStoredToken();
+
+      setAuthUser(null);
+      setAuthMode(null);
+      setShowForm(false);
+      setEditingId(null);
+      setDeleteTarget(null);
+
+      setError("");
+
+      if (logoutConfirmed) {
+        setMessage("You have logged out successfully.");
+      } else {
+        setMessage("");
+        setError(
+          "You have been logged out on this device, but server logout could not be confirmed. Please check your connection."
+        );
+      }
+    }
   }
 
   // Handle registration and login.
@@ -511,8 +544,8 @@ export default function HomePage() {
 
           <div className="hero-art">
             <div className="hero-circle">
-              <span className="hero-emoji">🧥</span>
-              <span className="hero-heart">♥</span>
+              <span className="hero-emoji">ðŸ§¥</span>
+              <span className="hero-heart">â™¥</span>
             </div>
           </div>
         </section>
@@ -520,7 +553,7 @@ export default function HomePage() {
         {/* Statistics */}
         <section className="stats">
           <div className="stat-card">
-            <span className="stat-icon">📦</span>
+            <span className="stat-icon">ðŸ“¦</span>
             <div>
               <h2>{listings.length}</h2>
               <p>Donation Listings</p>
@@ -528,7 +561,7 @@ export default function HomePage() {
           </div>
 
           <div className="stat-card">
-            <span className="stat-icon">📘</span>
+            <span className="stat-icon">ðŸ“˜</span>
             <div>
               <h2>{totalItems}</h2>
               <p>Total Items</p>
@@ -536,7 +569,7 @@ export default function HomePage() {
           </div>
 
           <div className="stat-card">
-            <span className="stat-icon">💚</span>
+            <span className="stat-icon">ðŸ’š</span>
             <div>
               <h2>{categories.length}</h2>
               <p>Donation Categories</p>
@@ -638,7 +671,7 @@ export default function HomePage() {
           {/* Loading and Empty States */}
           {loading && listings.length === 0 ? (
             <div className="empty-state">
-              <span className="empty-icon">⏳</span>
+              <span className="empty-icon">â³</span>
               <h3>Loading donations...</h3>
               <p>
                 Please wait while we retrieve the listings.
@@ -646,7 +679,7 @@ export default function HomePage() {
             </div>
           ) : filteredListings.length === 0 ? (
             <div className="empty-state">
-              <span className="empty-icon">📦</span>
+              <span className="empty-icon">ðŸ“¦</span>
               <h3>No donations found</h3>
               <p>
                 Try another search or add a new donation.
