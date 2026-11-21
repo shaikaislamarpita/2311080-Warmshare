@@ -1,5 +1,6 @@
 
 import os
+from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
@@ -36,6 +37,7 @@ def get_database_url():
     return parsed_url.set(query=query)
 
 
+@lru_cache(maxsize=1)
 def get_engine():
     return create_engine(
         get_database_url(),
@@ -43,6 +45,7 @@ def get_engine():
     )
 
 
+@lru_cache(maxsize=1)
 def get_session_factory():
     return sessionmaker(
         bind=get_engine(),

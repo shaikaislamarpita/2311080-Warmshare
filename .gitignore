@@ -1,3 +1,4 @@
+
 # Python
 __pycache__/
 .venv/
@@ -7,12 +8,14 @@ __pycache__/
 node_modules/
 frontend/dist/
 
-# Env / tooling
+# Environment files
 .env
 .env.*
 !.env.example
+
+# Vercel
 .vercel/
+
+# VS Code
 .vscode/*
 !.vscode/extensions.json
-.vercel
-.env*

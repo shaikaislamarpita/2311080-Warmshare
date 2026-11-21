@@ -1,4 +1,6 @@
 
+from datetime import datetime, timezone
+
 from fastapi import Depends, HTTPException
 from fastapi.security import (
     HTTPBearer,
@@ -9,14 +11,14 @@ from sqlalchemy.orm import Session
 # Support both local development and Vercel deployment
 try:
     from backend.database import get_session_factory
-    from backend.models import User
+    from backend.models import User, UserSession
     from backend.security import decode_access_token
 except ModuleNotFoundError as error:
     if error.name != "backend":
         raise
 
     from database import get_session_factory
-    from models import User
+    from models import User, UserSession
     from security import decode_access_token
 
 
@@ -59,22 +61,77 @@ def get_current_user(
         )
 
     # Decode and verify JWT
-    user_id = decode_access_token(credentials.credentials)
+    payload = decode_access_token(credentials.credentials)
 
-    if user_id is None:
+    if payload is None:
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Find authenticated user
+    # Extract user, role, and session information
+    try:
+        user_id = int(payload["sub"])
+        token_role = payload["role"]
+        session_id = payload["sid"]
+    except (KeyError, ValueError, TypeError):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Find the authenticated user
     user = db.get(User, user_id)
 
     if user is None:
         raise HTTPException(
             status_code=401,
             detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Reject banned accounts
+    if user.is_banned:
+        raise HTTPException(
+            status_code=403,
+            detail="Your account has been suspended.",
+        )
+
+    # Reject tokens containing an outdated role
+    if user.role != token_role:
+        raise HTTPException(
+            status_code=401,
+            detail="Your permissions have changed. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Find the session associated with this token
+    user_session = db.get(UserSession, session_id)
+
+    if user_session is None or user_session.user_id != user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Reject revoked sessions
+    if user_session.revoked_at is not None:
+        raise HTTPException(
+            status_code=401,
+            detail="This session has been revoked. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Reject expired sessions
+    now = datetime.now(timezone.utc)
+
+    if user_session.expires_at <= now:
+        raise HTTPException(
+            status_code=401,
+            detail="Session expired. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

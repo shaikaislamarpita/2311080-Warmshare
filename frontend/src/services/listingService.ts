@@ -1,4 +1,5 @@
 import type { ListingForm } from "../types/listing";
+import { authenticatedFetch } from "./api";
 
 export function getListings(): Promise<Response> {
   return fetch("/api/listings");
@@ -16,7 +17,7 @@ export function saveListing(
   const isEditing = editingId !== null;
   const url = isEditing ? `/api/listings/${editingId}` : "/api/listings";
 
-  return fetch(url, {
+  return authenticatedFetch(url, {
     method: isEditing ? "PUT" : "POST",
     headers: {
       "Content-Type": "application/json",
@@ -30,7 +31,7 @@ export function deleteListingById(
   id: number,
   token: string
 ): Promise<Response> {
-  return fetch(`/api/listings/${id}`, {
+  return authenticatedFetch(`/api/listings/${id}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,

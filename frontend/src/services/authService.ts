@@ -1,4 +1,3 @@
-
 export function registerUser(
   fullName: string,
   email: string,
@@ -6,6 +5,7 @@ export function registerUser(
 ): Promise<Response> {
   return fetch("/api/auth/register", {
     method: "POST",
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
     },
@@ -23,6 +23,7 @@ export function loginUser(
 ): Promise<Response> {
   return fetch("/api/auth/login", {
     method: "POST",
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
     },
@@ -35,8 +36,16 @@ export function loginUser(
 
 export function getCurrentUser(token: string): Promise<Response> {
   return fetch("/api/auth/me", {
+    credentials: "same-origin",
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  });
+}
+
+export function logoutUser(): Promise<Response> {
+  return fetch("/api/auth/logout", {
+    method: "POST",
+    credentials: "same-origin",
   });
 }
