@@ -1,12 +1,17 @@
-
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.models import User, UserSession, AuditLog
+# Support both local development and Vercel deployment.
+try:
+    from backend.models import User, UserSession, AuditLog
+except ModuleNotFoundError as error:
+    if error.name != "backend":
+        raise
 
+    from models import User, UserSession, AuditLog
 
 def get_admin_users_service(db: Session):
     """Return all users for the Admin dashboard."""
