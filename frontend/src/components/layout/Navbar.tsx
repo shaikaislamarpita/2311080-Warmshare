@@ -7,6 +7,7 @@ type NavbarProps = {
   logout: () => void;
   openAuth: (mode: AuthMode) => void;
   openCreateForm: () => void;
+  openDashboard: () => void;
 };
 
 export default function Navbar({
@@ -15,6 +16,7 @@ export default function Navbar({
   logout,
   openAuth,
   openCreateForm,
+  openDashboard,
 }: NavbarProps) {
   return (
     <header className="navbar">
@@ -46,6 +48,18 @@ export default function Navbar({
                   <small>{authUser.email}</small>
                 </div>
               </div>
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={openDashboard}
+              >
+                {authUser.role === "admin"
+                  ? "Admin Dashboard"
+                  : authUser.role === "moderator"
+                    ? "Moderator Dashboard"
+                    : "My Dashboard"}
+              </button>
 
               <button
                 type="button"

@@ -42,6 +42,10 @@ import DonationCard from "../components/listings/DonationCard";
 import DonationDetails from "../components/listings/DonationDetails";
 import DeleteConfirmation from "../components/listings/DeleteConfirmation";
 
+import AdminDashboard from "../components/dashboard/AdminDashboard";
+import ModeratorDashboard from "../components/dashboard/ModeratorDashboard";
+import UserDashboard from "../components/dashboard/UserDashboard";
+
 export default function HomePage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
@@ -70,6 +74,9 @@ export default function HomePage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
 
+  // Dashboard navigation
+  const [showDashboard, setShowDashboard] = useState(false);
+
   // Restore login using the refresh cookie when the browser reloads.
   useEffect(() => {
     async function restoreSession() {
@@ -97,7 +104,7 @@ export default function HomePage() {
       }
     }
 
-    restoreSession();
+    void restoreSession();
   }, []);
 
   // Load donations.
@@ -123,6 +130,31 @@ export default function HomePage() {
       listing.owner_id !== null &&
       listing.owner_id === authUser.id
     );
+  }
+
+  function openDashboard() {
+    if (!authUser || checkingSession) return;
+
+    setShowDashboard(true);
+    setShowForm(false);
+    setSelectedListing(null);
+    setEditingId(null);
+    setError("");
+    setMessage("");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  function closeDashboard() {
+    setShowDashboard(false);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   function openAuth(mode: AuthMode) {
@@ -152,6 +184,7 @@ export default function HomePage() {
 
       setAuthUser(null);
       setAuthMode(null);
+      setShowDashboard(false);
       setShowForm(false);
       setEditingId(null);
       setDeleteTarget(null);
@@ -264,6 +297,7 @@ export default function HomePage() {
       return;
     }
 
+    setShowDashboard(false);
     setForm({ ...emptyForm });
     setEditingId(null);
     setSelectedListing(null);
@@ -280,6 +314,8 @@ export default function HomePage() {
       setError("You can only edit donations created by your account.");
       return;
     }
+
+    setShowDashboard(false);
 
     setForm({
       title: listing.title,
@@ -351,7 +387,7 @@ export default function HomePage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          sessionStorage.removeItem(TOKEN_KEY);
+          clearStoredToken();
           setAuthUser(null);
           closeForm();
           openAuth("login");
@@ -370,6 +406,7 @@ export default function HomePage() {
           : "Donation created successfully!"
       );
 
+      setShowDashboard(false);
       scrollToSection("donations");
     } catch (err) {
       setError(
@@ -396,6 +433,7 @@ export default function HomePage() {
 
       setSelectedListing(data);
       setShowForm(false);
+      setShowDashboard(false);
       setEditingId(null);
 
       scrollToSection("donation-details");
@@ -453,7 +491,7 @@ export default function HomePage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          sessionStorage.removeItem(TOKEN_KEY);
+          clearStoredToken();
           setAuthUser(null);
           setDeleteTarget(null);
           openAuth("login");
@@ -510,197 +548,218 @@ export default function HomePage() {
         logout={logout}
         openAuth={openAuth}
         openCreateForm={openCreateForm}
+        openDashboard={openDashboard}
       />
 
       <main className="main-content">
-        {/* Hero Section */}
-        <section className="hero" id="home">
-          <div className="hero-content">
-            <span className="hero-label">
-              A Community Donation Platform
-            </span>
+        {showDashboard && authUser ? (
+          <>
+            {authUser.role === "admin" ? (
+              <AdminDashboard
+                currentUserId={authUser.id}
+                onBack={closeDashboard}
+              />
+            ) : authUser.role === "moderator" ? (
+              <ModeratorDashboard onBack={closeDashboard} />
+            ) : (
+              <UserDashboard
+                currentUser={authUser}
+                onBack={closeDashboard}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {/* Hero Section */}
+            <section className="hero" id="home">
+              <div className="hero-content">
+                <span className="hero-label">
+                  A Community Donation Platform
+                </span>
 
-            <h1>
-              Share warmth.
-              <br />
-              <span>Spread kindness.</span>
-            </h1>
+                <h1>
+                  Share warmth.
+                  <br />
+                  <span>Spread kindness.</span>
+                </h1>
 
-            <p>
-              Give your unused winter clothes a new purpose.
-              Every jacket, sweater, and blanket can make
-              a difference.
-            </p>
+                <p>
+                  Give your unused winter clothes a new purpose.
+                  Every jacket, sweater, and blanket can make
+                  a difference.
+                </p>
 
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={openCreateForm}
-              disabled={checkingSession}
-            >
-              + Donate Clothes
-            </button>
-          </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={openCreateForm}
+                  disabled={checkingSession}
+                >
+                  + Donate Clothes
+                </button>
+              </div>
 
-          <div className="hero-art">
-            <div className="hero-circle">
-              <span className="hero-emoji">ðŸ§¥</span>
-              <span className="hero-heart">â™¥</span>
-            </div>
-          </div>
-        </section>
+              <div className="hero-art">
+                <div className="hero-circle">
+                  <span className="hero-emoji">🧥</span>
+                  <span className="hero-heart">♥</span>
+                </div>
+              </div>
+            </section>
 
-        {/* Statistics */}
-        <section className="stats">
-          <div className="stat-card">
-            <span className="stat-icon">ðŸ“¦</span>
-            <div>
-              <h2>{listings.length}</h2>
-              <p>Donation Listings</p>
-            </div>
-          </div>
+            {/* Statistics */}
+            <section className="stats">
+              <div className="stat-card">
+                <span className="stat-icon">📦</span>
+                <div>
+                  <h2>{listings.length}</h2>
+                  <p>Donation Listings</p>
+                </div>
+              </div>
 
-          <div className="stat-card">
-            <span className="stat-icon">ðŸ“˜</span>
-            <div>
-              <h2>{totalItems}</h2>
-              <p>Total Items</p>
-            </div>
-          </div>
+              <div className="stat-card">
+                <span className="stat-icon">📘</span>
+                <div>
+                  <h2>{totalItems}</h2>
+                  <p>Total Items</p>
+                </div>
+              </div>
 
-          <div className="stat-card">
-            <span className="stat-icon">ðŸ’š</span>
-            <div>
-              <h2>{categories.length}</h2>
-              <p>Donation Categories</p>
-            </div>
-          </div>
-        </section>
+              <div className="stat-card">
+                <span className="stat-icon">💚</span>
+                <div>
+                  <h2>{categories.length}</h2>
+                  <p>Donation Categories</p>
+                </div>
+              </div>
+            </section>
 
-        {/* Messages */}
-        {message && (
-          <div className="alert alert-success" role="status">
-            {message}
-          </div>
-        )}
+            {/* Messages */}
+            {message && (
+              <div className="alert alert-success" role="status">
+                {message}
+              </div>
+            )}
 
-        {error && (
-          <div className="alert alert-error" role="alert">
-            {error}
-          </div>
-        )}
+            {error && (
+              <div className="alert alert-error" role="alert">
+                {error}
+              </div>
+            )}
 
-        {/* Donation Form Component */}
-        <DonationForm
-          showForm={showForm && authUser !== null}
-          editingId={editingId}
-          form={form}
-          saving={saving}
-          closeForm={closeForm}
-          updateForm={updateForm}
-          handleSubmit={handleSubmit}
-        />
-
-        {/* Donation Details Component */}
-        <DonationDetails
-          selectedListing={selectedListing}
-          isOwner={isOwner}
-          deletingId={deletingId}
-          closeDetails={() => setSelectedListing(null)}
-          openEditForm={openEditForm}
-          confirmDelete={confirmDelete}
-        />
-
-        {/* Donation List */}
-        <section
-          className="donations-section"
-          id="donations"
-          style={{ scrollMarginTop: 110 }}
-        >
-          <div className="section-heading">
-            <div>
-              <span className="section-label">
-                BROWSE DONATIONS
-              </span>
-
-              <h2>Available Donations</h2>
-
-              <p>
-                Discover clothes and winter essentials
-                shared by the community.
-              </p>
-            </div>
-          </div>
-
-          {/* Search and Category Filter */}
-          <div className="filter-bar">
-            <input
-              type="search"
-              placeholder="Search by title or pickup location..."
-              aria-label="Search donations"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+            {/* Donation Form Component */}
+            <DonationForm
+              showForm={showForm && authUser !== null}
+              editingId={editingId}
+              form={form}
+              saving={saving}
+              closeForm={closeForm}
+              updateForm={updateForm}
+              handleSubmit={handleSubmit}
             />
 
-            <select
-              aria-label="Filter by category"
-              value={categoryFilter}
-              onChange={(event) =>
-                setCategoryFilter(event.target.value)
-              }
+            {/* Donation Details Component */}
+            <DonationDetails
+              selectedListing={selectedListing}
+              isOwner={isOwner}
+              deletingId={deletingId}
+              closeDetails={() => setSelectedListing(null)}
+              openEditForm={openEditForm}
+              confirmDelete={confirmDelete}
+            />
+
+            {/* Donation List */}
+            <section
+              className="donations-section"
+              id="donations"
+              style={{ scrollMarginTop: 110 }}
             >
-              <option value="all">All Categories</option>
+              <div className="section-heading">
+                <div>
+                  <span className="section-label">
+                    BROWSE DONATIONS
+                  </span>
 
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {formatText(category)}
-                </option>
-              ))}
-            </select>
+                  <h2>Available Donations</h2>
 
-            <button
-              type="button"
-              className="btn btn-outline"
-              onClick={() => void loadListings()}
-              disabled={loading}
-            >
-              {loading ? "Loading..." : "Refresh"}
-            </button>
-          </div>
+                  <p>
+                    Discover clothes and winter essentials
+                    shared by the community.
+                  </p>
+                </div>
+              </div>
 
-          {/* Loading and Empty States */}
-          {loading && listings.length === 0 ? (
-            <div className="empty-state">
-              <span className="empty-icon">â³</span>
-              <h3>Loading donations...</h3>
-              <p>
-                Please wait while we retrieve the listings.
-              </p>
-            </div>
-          ) : filteredListings.length === 0 ? (
-            <div className="empty-state">
-              <span className="empty-icon">ðŸ“¦</span>
-              <h3>No donations found</h3>
-              <p>
-                Try another search or add a new donation.
-              </p>
-            </div>
-          ) : (
-            <div className="donation-grid">
-              {filteredListings.map((listing) => (
-                <DonationCard
-                  key={listing.id}
-                  listing={listing}
-                  isOwner={isOwner(listing)}
-                  deleting={deletingId === listing.id}
-                  viewDetails={viewDetails}
-                  openEditForm={openEditForm}
-                  confirmDelete={confirmDelete}
+              {/* Search and Category Filter */}
+              <div className="filter-bar">
+                <input
+                  type="search"
+                  placeholder="Search by title or pickup location..."
+                  aria-label="Search donations"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
                 />
-              ))}
-            </div>
-          )}
-        </section>
+
+                <select
+                  aria-label="Filter by category"
+                  value={categoryFilter}
+                  onChange={(event) =>
+                    setCategoryFilter(event.target.value)
+                  }
+                >
+                  <option value="all">All Categories</option>
+
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {formatText(category)}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => void loadListings()}
+                  disabled={loading}
+                >
+                  {loading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+
+              {/* Loading and Empty States */}
+              {loading && listings.length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">⏳</span>
+                  <h3>Loading donations...</h3>
+                  <p>
+                    Please wait while we retrieve the listings.
+                  </p>
+                </div>
+              ) : filteredListings.length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">📦</span>
+                  <h3>No donations found</h3>
+                  <p>
+                    Try another search or add a new donation.
+                  </p>
+                </div>
+              ) : (
+                <div className="donation-grid">
+                  {filteredListings.map((listing) => (
+                    <DonationCard
+                      key={listing.id}
+                      listing={listing}
+                      isOwner={isOwner(listing)}
+                      deleting={deletingId === listing.id}
+                      viewDetails={viewDetails}
+                      openEditForm={openEditForm}
+                      confirmDelete={confirmDelete}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </main>
 
       {/* Authentication Modal Component */}
