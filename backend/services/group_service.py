@@ -234,7 +234,14 @@ def get_group_detail_service(
         select(Group)
         .options(
             selectinload(Group.members),
-            selectinload(Group.listings),
+            selectinload(
+                Group.listings.and_(
+                    Listing.moderation_status == "visible"
+                )
+            ),
+        )
+        .execution_options(
+            populate_existing=True
         )
         .where(Group.id == group_id)
     )
