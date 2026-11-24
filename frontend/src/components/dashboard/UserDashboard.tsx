@@ -1,20 +1,25 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import type { AuthUser } from "../../types/auth";
 import type { Listing } from "../../types/listing";
 
 import { authenticatedFetch } from "../../services/api";
+import {
+  updateMyProfile,
+  changeMyPassword,
+} from "../../services/authService";
 
 import GroupPermissions from "./GroupPermissions";
 
 type UserDashboardProps = {
   currentUser: AuthUser;
   onBack: () => void;
+  onUserUpdated: (user: AuthUser) => void;
 };
 
 type UserSession = {
-  id: number;
+  id: string;
   created_at?: string;
   expires_at?: string;
   last_used_at?: string | null;
@@ -22,28 +27,82 @@ type UserSession = {
   ip_address?: string | null;
 };
 
-function formatDate(value?: string | null) {
+type PasswordForm = {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+};
+
+const emptyPasswordForm: PasswordForm = {
+  current_password: "",
+  new_password: "",
+  confirm_password: "",
+};
+
+function formatDate(value?: string | null): string {
   if (!value) return "Not available";
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return "Not available";
+  if (Number.isNaN(date.getTime())) {
+    return "Not available";
+  }
 
   return date.toLocaleString();
+}
+
+async function readApiError(response: Response): Promise<string> {
+  try {
+    const data = await response.json();
+
+    if (typeof data.detail === "string") {
+      return data.detail;
+    }
+
+    if (Array.isArray(data.detail)) {
+      return data.detail
+        .map((item: { msg?: string }) => item.msg ?? "Invalid input")
+        .join(", ");
+    }
+  } catch {
+    // Use fallback message.
+  }
+
+  return `Request failed (${response.status}). Please try again.`;
 }
 
 export default function UserDashboard({
   currentUser,
   onBack,
+  onUserUpdated,
 }: UserDashboardProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [sessions, setSessions] = useState<UserSession[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [busySessionId, setBusySessionId] = useState<number | null>(null);
+  const [busySessionId, setBusySessionId] = useState<string | null>(null);
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  // Profile management
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [fullName, setFullName] = useState(currentUser.full_name);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Password management
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordForm, setPasswordForm] =
+    useState<PasswordForm>({ ...emptyPasswordForm });
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  useEffect(() => {
+    setFullName(currentUser.full_name);
+  }, [currentUser.full_name]);
+
+  // ========================================
+  // LOAD DASHBOARD DATA
+  // ========================================
 
   async function loadDashboard() {
     setLoading(true);
@@ -92,7 +151,137 @@ export default function UserDashboard({
     void loadDashboard();
   }, [currentUser.id]);
 
-  async function handleRevokeSession(sessionId: number) {
+  // ========================================
+  // UPDATE PROFILE
+  // PATCH /api/auth/me
+  // ========================================
+
+  async function handleProfileUpdate(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    const trimmedName = fullName.trim();
+
+    setError("");
+    setMessage("");
+
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      setError("Full name must contain between 2 and 100 characters.");
+      return;
+    }
+
+    if (trimmedName === currentUser.full_name) {
+      setEditingProfile(false);
+      setMessage("No profile changes were necessary.");
+      return;
+    }
+
+    setSavingProfile(true);
+
+    try {
+      const response = await updateMyProfile(trimmedName);
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      const updatedUser: AuthUser = await response.json();
+
+      onUserUpdated(updatedUser);
+
+      setFullName(updatedUser.full_name);
+      setEditingProfile(false);
+
+      setMessage("Your profile was updated successfully.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update your profile."
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  // ========================================
+  // CHANGE PASSWORD
+  // POST /api/auth/change-password
+  // ========================================
+
+  async function handlePasswordChange(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setError("");
+    setMessage("");
+
+    if (!passwordForm.current_password) {
+      setError("Please enter your current password.");
+      return;
+    }
+
+    if (passwordForm.new_password.length < 8) {
+      setError("New password must contain at least 8 characters.");
+      return;
+    }
+
+    if (
+      passwordForm.new_password !== passwordForm.confirm_password
+    ) {
+      setError("New password and confirmation do not match.");
+      return;
+    }
+
+    if (
+      passwordForm.current_password === passwordForm.new_password
+    ) {
+      setError("New password must differ from your current password.");
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      const response = await changeMyPassword(
+        passwordForm.current_password,
+        passwordForm.new_password,
+        passwordForm.confirm_password
+      );
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      const result: { message?: string } = await response.json();
+
+      setPasswordForm({ ...emptyPasswordForm });
+      setShowPasswordForm(false);
+
+      setMessage(
+        result.message ?? "Password changed successfully."
+      );
+
+      // The backend keeps the current session and revokes other sessions.
+      await loadDashboard();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to change your password."
+      );
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
+  // ========================================
+  // REVOKE LOGIN SESSION
+  // ========================================
+
+  async function handleRevokeSession(sessionId: string) {
     const confirmed = window.confirm(
       "Are you sure you want to revoke this login session?"
     );
@@ -105,14 +294,12 @@ export default function UserDashboard({
 
     try {
       const response = await authenticatedFetch(
-        `/api/auth/sessions/${sessionId}`,
+        `/api/auth/sessions/${encodeURIComponent(sessionId)}`,
         { method: "DELETE" }
       );
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to revoke session (${response.status}).`
-        );
+        throw new Error(await readApiError(response));
       }
 
       setSessions((previous) =>
@@ -131,6 +318,10 @@ export default function UserDashboard({
     }
   }
 
+  // ========================================
+  // LOADING STATE
+  // ========================================
+
   if (loading) {
     return (
       <section className="dashboard-page">
@@ -139,8 +330,15 @@ export default function UserDashboard({
     );
   }
 
+  // ========================================
+  // DASHBOARD
+  // ========================================
+
   return (
     <section className="dashboard-page">
+
+      {/* Dashboard Header */}
+
       <div className="dashboard-header">
         <div>
           <span className="section-label">WARMSHARE ACCOUNT</span>
@@ -167,6 +365,8 @@ export default function UserDashboard({
         </div>
       </div>
 
+      {/* Global Messages */}
+
       {error && (
         <div className="alert alert-error" role="alert">
           {error}
@@ -179,13 +379,31 @@ export default function UserDashboard({
         </div>
       )}
 
-      {/* Account Information */}
+      {/* ========================================
+          ACCOUNT INFORMATION
+      ======================================== */}
+
       <section className="dashboard-panel">
         <div className="dashboard-panel-heading">
           <div>
             <h2>Account Information</h2>
             <p>Your WarmShare account details.</p>
           </div>
+
+          {!editingProfile && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => {
+                setFullName(currentUser.full_name);
+                setEditingProfile(true);
+                setError("");
+                setMessage("");
+              }}
+            >
+              Edit Profile
+            </button>
+          )}
         </div>
 
         <div className="user-account-details">
@@ -204,9 +422,175 @@ export default function UserDashboard({
             <p>Account ID: {currentUser.id}</p>
           </div>
         </div>
+
+        {editingProfile && (
+          <form onSubmit={handleProfileUpdate}>
+            <div className="form-group">
+              <label htmlFor="profile-full-name">Full Name</label>
+
+              <input
+                id="profile-full-name"
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                minLength={2}
+                maxLength={100}
+                required
+                disabled={savingProfile}
+              />
+            </div>
+
+            <div className="dashboard-header-actions">
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={savingProfile}
+              >
+                {savingProfile ? "Saving..." : "Save Changes"}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                disabled={savingProfile}
+                onClick={() => {
+                  setEditingProfile(false);
+                  setFullName(currentUser.full_name);
+                  setError("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </section>
 
-      {/* Dashboard Statistics */}
+      {/* ========================================
+          SECURITY SETTINGS
+      ======================================== */}
+
+      <section className="dashboard-panel">
+        <div className="dashboard-panel-heading">
+          <div>
+            <h2>Security Settings</h2>
+            <p>Keep your WarmShare account secure.</p>
+          </div>
+
+          {!showPasswordForm && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => {
+                setShowPasswordForm(true);
+                setError("");
+                setMessage("");
+              }}
+            >
+              Change Password
+            </button>
+          )}
+        </div>
+
+        {showPasswordForm && (
+          <form onSubmit={handlePasswordChange}>
+            <div className="form-group">
+              <label htmlFor="current-password">
+                Current Password
+              </label>
+
+              <input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={passwordForm.current_password}
+                onChange={(event) =>
+                  setPasswordForm((previous) => ({
+                    ...previous,
+                    current_password: event.target.value,
+                  }))
+                }
+                required
+                disabled={changingPassword}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="new-password">New Password</label>
+
+              <input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={passwordForm.new_password}
+                onChange={(event) =>
+                  setPasswordForm((previous) => ({
+                    ...previous,
+                    new_password: event.target.value,
+                  }))
+                }
+                minLength={8}
+                maxLength={128}
+                required
+                disabled={changingPassword}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="confirm-password">
+                Confirm New Password
+              </label>
+
+              <input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={passwordForm.confirm_password}
+                onChange={(event) =>
+                  setPasswordForm((previous) => ({
+                    ...previous,
+                    confirm_password: event.target.value,
+                  }))
+                }
+                minLength={8}
+                maxLength={128}
+                required
+                disabled={changingPassword}
+              />
+            </div>
+
+            <div className="dashboard-header-actions">
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={changingPassword}
+              >
+                {changingPassword
+                  ? "Changing Password..."
+                  : "Update Password"}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                disabled={changingPassword}
+                onClick={() => {
+                  setShowPasswordForm(false);
+                  setPasswordForm({ ...emptyPasswordForm });
+                  setError("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+
+      {/* ========================================
+          DASHBOARD STATISTICS
+      ======================================== */}
+
       <div className="dashboard-stats">
         <div className="dashboard-stat-card">
           <span>My Donations</span>
@@ -219,7 +603,10 @@ export default function UserDashboard({
         </div>
       </div>
 
-      {/* My Groups */}
+      {/* ========================================
+          MY GROUPS
+      ======================================== */}
+
       <section className="dashboard-panel">
         <div className="dashboard-panel-heading">
           <div>
@@ -243,10 +630,16 @@ export default function UserDashboard({
         </div>
       </section>
 
-      {/* Group Overview and Permissions */}
+      {/* ========================================
+          GROUP PERMISSIONS
+      ======================================== */}
+
       <GroupPermissions />
 
-      {/* My Donations */}
+      {/* ========================================
+          MY DONATIONS
+      ======================================== */}
+
       <section className="dashboard-panel">
         <div className="dashboard-panel-heading">
           <div>
@@ -292,7 +685,10 @@ export default function UserDashboard({
         )}
       </section>
 
-      {/* Login Sessions */}
+      {/* ========================================
+          LOGIN SESSIONS
+      ======================================== */}
+
       <section className="dashboard-panel">
         <div className="dashboard-panel-heading">
           <div>
@@ -346,7 +742,9 @@ export default function UserDashboard({
                   type="button"
                   className="btn btn-danger"
                   disabled={busySessionId === session.id}
-                  onClick={() => void handleRevokeSession(session.id)}
+                  onClick={() =>
+                    void handleRevokeSession(session.id)
+                  }
                 >
                   {busySessionId === session.id
                     ? "Revoking..."
