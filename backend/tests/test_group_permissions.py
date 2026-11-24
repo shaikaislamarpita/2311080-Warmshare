@@ -661,3 +661,118 @@ def test_group_member_cannot_edit_another_users_personal_listing(client):
     )
 
     assert response.status_code == 403
+
+
+# ========================================
+# HIDDEN GROUP DONATION REGRESSION TEST
+# ISSUE #35
+# ========================================
+
+def test_hidden_group_listing_is_excluded_from_group_details(
+    client,
+    test_engine,
+):
+    """
+    A hidden donation must not appear in Group Details.
+
+    The hidden donation must remain in the database,
+    and visible group donations must still appear.
+    """
+
+    owner_id, owner_token = register_and_login(
+        client,
+        "hidden-group-owner@example.com",
+    )
+
+    group_id = create_group(
+        client,
+        owner_token,
+    )
+
+    # Create the donation that should remain visible.
+    visible_response = create_listing(
+        client,
+        owner_token,
+        group_id,
+    )
+
+    assert visible_response.status_code == 201, visible_response.text
+
+    visible_id = visible_response.json()["id"]
+
+    # Create a second donation that will be hidden.
+    hidden_response = create_listing(
+        client,
+        owner_token,
+        group_id,
+    )
+
+    assert hidden_response.status_code == 201, hidden_response.text
+
+    hidden_id = hidden_response.json()["id"]
+
+    # Set the second donation's moderation status
+    # directly in the isolated test database.
+    #
+    # Moderator API permissions will be tested
+    # separately in the Moderator test file.
+    TestingSessionLocal = sessionmaker(
+        bind=test_engine,
+        autoflush=False,
+        autocommit=False,
+    )
+
+    with TestingSessionLocal() as db:
+        hidden_listing = db.get(Listing, hidden_id)
+
+        assert hidden_listing is not None
+
+        hidden_listing.moderation_status = "hidden"
+
+        db.commit()
+
+    # Request the group details through the actual API.
+    detail_response = client.get(
+        f"/api/groups/{group_id}",
+        headers=auth_headers(owner_token),
+    )
+
+    assert detail_response.status_code == 200, detail_response.text
+
+    group_data = detail_response.json()
+
+    returned_listing_ids = {
+        listing["id"]
+        for listing in group_data["listings"]
+    }
+
+    # Visible donation should appear.
+    assert visible_id in returned_listing_ids
+
+    # Hidden donation must not appear.
+    assert hidden_id not in returned_listing_ids
+
+    # Dedicated group listing endpoint should
+    # follow the same visibility rule.
+    listings_response = client.get(
+        f"/api/groups/{group_id}/listings",
+        headers=auth_headers(owner_token),
+    )
+
+    assert listings_response.status_code == 200, listings_response.text
+
+    listing_ids = {
+        listing["id"]
+        for listing in listings_response.json()
+    }
+
+    assert visible_id in listing_ids
+    assert hidden_id not in listing_ids
+
+    # Verify the hidden donation was NOT deleted.
+    with TestingSessionLocal() as db:
+        saved_hidden_listing = db.get(Listing, hidden_id)
+
+        assert saved_hidden_listing is not None
+        assert saved_hidden_listing.group_id == group_id
+        assert saved_hidden_listing.moderation_status == "hidden"
