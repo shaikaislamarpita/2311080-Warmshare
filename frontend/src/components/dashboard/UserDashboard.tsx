@@ -5,12 +5,17 @@ import type { AuthUser } from "../../types/auth";
 import type { Listing } from "../../types/listing";
 
 import { authenticatedFetch } from "../../services/api";
+
 import {
   updateMyProfile,
   changeMyPassword,
 } from "../../services/authService";
 
 import GroupPermissions from "./GroupPermissions";
+
+// ========================================
+// TYPES
+// ========================================
 
 type UserDashboardProps = {
   currentUser: AuthUser;
@@ -33,14 +38,24 @@ type PasswordForm = {
   confirm_password: string;
 };
 
+// ========================================
+// DEFAULT VALUES
+// ========================================
+
 const emptyPasswordForm: PasswordForm = {
   current_password: "",
   new_password: "",
   confirm_password: "",
 };
 
+// ========================================
+// HELPERS
+// ========================================
+
 function formatDate(value?: string | null): string {
-  if (!value) return "Not available";
+  if (!value) {
+    return "Not available";
+  }
 
   const date = new Date(value);
 
@@ -61,44 +76,92 @@ async function readApiError(response: Response): Promise<string> {
 
     if (Array.isArray(data.detail)) {
       return data.detail
-        .map((item: { msg?: string }) => item.msg ?? "Invalid input")
+        .map(
+          (item: { msg?: string }) =>
+            item.msg ?? "Invalid input"
+        )
         .join(", ");
     }
   } catch {
-    // Use fallback message.
+    // Use fallback error message.
   }
 
   return `Request failed (${response.status}). Please try again.`;
 }
+
+// ========================================
+// USER DASHBOARD
+// ========================================
 
 export default function UserDashboard({
   currentUser,
   onBack,
   onUserUpdated,
 }: UserDashboardProps) {
+  // ========================================
+  // STATE
+  // ========================================
+
   const [listings, setListings] = useState<Listing[]>([]);
   const [sessions, setSessions] = useState<UserSession[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [busySessionId, setBusySessionId] = useState<string | null>(null);
+
+  const [busySessionId, setBusySessionId] =
+    useState<string | null>(null);
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
   // Profile management
+
   const [editingProfile, setEditingProfile] = useState(false);
-  const [fullName, setFullName] = useState(currentUser.full_name);
+
+  const [fullName, setFullName] = useState(
+    currentUser.full_name
+  );
+
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Password management
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
+
+  const [showPasswordForm, setShowPasswordForm] =
+    useState(false);
+
   const [passwordForm, setPasswordForm] =
     useState<PasswordForm>({ ...emptyPasswordForm });
-  const [changingPassword, setChangingPassword] = useState(false);
+
+  const [changingPassword, setChangingPassword] =
+    useState(false);
+
+  // ========================================
+  // KEEP PROFILE NAME UPDATED
+  // ========================================
 
   useEffect(() => {
     setFullName(currentUser.full_name);
   }, [currentUser.full_name]);
+
+  // ========================================
+  // COPY USER ID
+  // ========================================
+
+  async function handleCopyUserId() {
+    setError("");
+    setMessage("");
+
+    try {
+      await navigator.clipboard.writeText(
+        String(currentUser.id)
+      );
+
+      setMessage("User ID copied successfully.");
+    } catch {
+      setError(
+        "Unable to copy User ID. Please copy it manually."
+      );
+    }
+  }
 
   // ========================================
   // LOAD DASHBOARD DATA
@@ -109,7 +172,10 @@ export default function UserDashboard({
     setError("");
 
     try {
-      const [listingsResponse, sessionsResponse] = await Promise.all([
+      const [
+        listingsResponse,
+        sessionsResponse,
+      ] = await Promise.all([
         authenticatedFetch("/api/listings"),
         authenticatedFetch("/api/auth/sessions"),
       ]);
@@ -126,12 +192,16 @@ export default function UserDashboard({
         );
       }
 
-      const listingsData: Listing[] = await listingsResponse.json();
-      const sessionsData: UserSession[] = await sessionsResponse.json();
+      const listingsData: Listing[] =
+        await listingsResponse.json();
+
+      const sessionsData: UserSession[] =
+        await sessionsResponse.json();
 
       setListings(
         listingsData.filter(
-          (listing) => listing.owner_id === currentUser.id
+          (listing) =>
+            listing.owner_id === currentUser.id
         )
       );
 
@@ -166,34 +236,52 @@ export default function UserDashboard({
     setError("");
     setMessage("");
 
-    if (trimmedName.length < 2 || trimmedName.length > 100) {
-      setError("Full name must contain between 2 and 100 characters.");
+    if (
+      trimmedName.length < 2 ||
+      trimmedName.length > 100
+    ) {
+      setError(
+        "Full name must contain between 2 and 100 characters."
+      );
+
       return;
     }
 
     if (trimmedName === currentUser.full_name) {
       setEditingProfile(false);
-      setMessage("No profile changes were necessary.");
+
+      setMessage(
+        "No profile changes were necessary."
+      );
+
       return;
     }
 
     setSavingProfile(true);
 
     try {
-      const response = await updateMyProfile(trimmedName);
+      const response = await updateMyProfile(
+        trimmedName
+      );
 
       if (!response.ok) {
-        throw new Error(await readApiError(response));
+        throw new Error(
+          await readApiError(response)
+        );
       }
 
-      const updatedUser: AuthUser = await response.json();
+      const updatedUser: AuthUser =
+        await response.json();
 
       onUserUpdated(updatedUser);
 
       setFullName(updatedUser.full_name);
+
       setEditingProfile(false);
 
-      setMessage("Your profile was updated successfully.");
+      setMessage(
+        "Your profile was updated successfully."
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -219,26 +307,42 @@ export default function UserDashboard({
     setMessage("");
 
     if (!passwordForm.current_password) {
-      setError("Please enter your current password.");
-      return;
-    }
+      setError(
+        "Please enter your current password."
+      );
 
-    if (passwordForm.new_password.length < 8) {
-      setError("New password must contain at least 8 characters.");
-      return;
-    }
-
-    if (
-      passwordForm.new_password !== passwordForm.confirm_password
-    ) {
-      setError("New password and confirmation do not match.");
       return;
     }
 
     if (
-      passwordForm.current_password === passwordForm.new_password
+      passwordForm.new_password.length < 8
     ) {
-      setError("New password must differ from your current password.");
+      setError(
+        "New password must contain at least 8 characters."
+      );
+
+      return;
+    }
+
+    if (
+      passwordForm.new_password !==
+      passwordForm.confirm_password
+    ) {
+      setError(
+        "New password and confirmation do not match."
+      );
+
+      return;
+    }
+
+    if (
+      passwordForm.current_password ===
+      passwordForm.new_password
+    ) {
+      setError(
+        "New password must differ from your current password."
+      );
+
       return;
     }
 
@@ -252,19 +356,29 @@ export default function UserDashboard({
       );
 
       if (!response.ok) {
-        throw new Error(await readApiError(response));
+        throw new Error(
+          await readApiError(response)
+        );
       }
 
-      const result: { message?: string } = await response.json();
+      const result: {
+        message?: string;
+      } = await response.json();
 
-      setPasswordForm({ ...emptyPasswordForm });
+      setPasswordForm({
+        ...emptyPasswordForm,
+      });
+
       setShowPasswordForm(false);
 
       setMessage(
-        result.message ?? "Password changed successfully."
+        result.message ??
+          "Password changed successfully."
       );
 
-      // The backend keeps the current session and revokes other sessions.
+      // Current session remains active.
+      // Other sessions are revoked by backend.
+
       await loadDashboard();
     } catch (err) {
       setError(
@@ -281,32 +395,48 @@ export default function UserDashboard({
   // REVOKE LOGIN SESSION
   // ========================================
 
-  async function handleRevokeSession(sessionId: string) {
+  async function handleRevokeSession(
+    sessionId: string
+  ) {
     const confirmed = window.confirm(
       "Are you sure you want to revoke this login session?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     setBusySessionId(sessionId);
+
     setError("");
     setMessage("");
 
     try {
       const response = await authenticatedFetch(
-        `/api/auth/sessions/${encodeURIComponent(sessionId)}`,
-        { method: "DELETE" }
+        `/api/auth/sessions/${encodeURIComponent(
+          sessionId
+        )}`,
+        {
+          method: "DELETE",
+        }
       );
 
       if (!response.ok) {
-        throw new Error(await readApiError(response));
+        throw new Error(
+          await readApiError(response)
+        );
       }
 
       setSessions((previous) =>
-        previous.filter((session) => session.id !== sessionId)
+        previous.filter(
+          (session) =>
+            session.id !== sessionId
+        )
       );
 
-      setMessage("Login session revoked successfully.");
+      setMessage(
+        "Login session revoked successfully."
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -331,26 +461,37 @@ export default function UserDashboard({
   }
 
   // ========================================
-  // DASHBOARD
+  // DASHBOARD UI
   // ========================================
 
   return (
     <section className="dashboard-page">
 
-      {/* Dashboard Header */}
+      {/* ========================================
+          DASHBOARD HEADER
+      ======================================== */}
 
       <div className="dashboard-header">
         <div>
-          <span className="section-label">WARMSHARE ACCOUNT</span>
+          <span className="section-label">
+            WARMSHARE ACCOUNT
+          </span>
+
           <h1>My Dashboard</h1>
-          <p>Manage your donations and review your account activity.</p>
+
+          <p>
+            Manage your donations and review
+            your account activity.
+          </p>
         </div>
 
         <div className="dashboard-header-actions">
           <button
             type="button"
             className="btn btn-outline"
-            onClick={() => void loadDashboard()}
+            onClick={() =>
+              void loadDashboard()
+            }
           >
             Refresh
           </button>
@@ -365,16 +506,24 @@ export default function UserDashboard({
         </div>
       </div>
 
-      {/* Global Messages */}
+      {/* ========================================
+          GLOBAL MESSAGES
+      ======================================== */}
 
       {error && (
-        <div className="alert alert-error" role="alert">
+        <div
+          className="alert alert-error"
+          role="alert"
+        >
           {error}
         </div>
       )}
 
       {message && (
-        <div className="alert alert-success" role="status">
+        <div
+          className="alert alert-success"
+          role="status"
+        >
           {message}
         </div>
       )}
@@ -387,7 +536,10 @@ export default function UserDashboard({
         <div className="dashboard-panel-heading">
           <div>
             <h2>Account Information</h2>
-            <p>Your WarmShare account details.</p>
+
+            <p>
+              Your WarmShare account details.
+            </p>
           </div>
 
           {!editingProfile && (
@@ -395,8 +547,12 @@ export default function UserDashboard({
               type="button"
               className="btn btn-outline"
               onClick={() => {
-                setFullName(currentUser.full_name);
+                setFullName(
+                  currentUser.full_name
+                );
+
                 setEditingProfile(true);
+
                 setError("");
                 setMessage("");
               }}
@@ -408,31 +564,63 @@ export default function UserDashboard({
 
         <div className="user-account-details">
           <div className="user-account-avatar">
-            {currentUser.full_name.charAt(0).toUpperCase()}
+            {currentUser.full_name
+              .charAt(0)
+              .toUpperCase()}
           </div>
 
           <div>
-            <h3>{currentUser.full_name}</h3>
+            <h3>
+              {currentUser.full_name}
+            </h3>
+
             <p>{currentUser.email}</p>
 
             <span className="dashboard-role">
               {currentUser.role}
             </span>
 
-            <p>Account ID: {currentUser.id}</p>
+            {/* ACCOUNT ID AND COPY BUTTON */}
+
+            <div className="dashboard-header-actions">
+              <p>
+                Account ID:{" "}
+                <strong>
+                  {currentUser.id}
+                </strong>
+              </p>
+
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() =>
+                  void handleCopyUserId()
+                }
+              >
+                Copy ID
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* EDIT PROFILE FORM */}
 
         {editingProfile && (
           <form onSubmit={handleProfileUpdate}>
             <div className="form-group">
-              <label htmlFor="profile-full-name">Full Name</label>
+              <label htmlFor="profile-full-name">
+                Full Name
+              </label>
 
               <input
                 id="profile-full-name"
                 type="text"
                 value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
+                onChange={(event) =>
+                  setFullName(
+                    event.target.value
+                  )
+                }
                 minLength={2}
                 maxLength={100}
                 required
@@ -446,7 +634,9 @@ export default function UserDashboard({
                 className="btn btn-primary"
                 disabled={savingProfile}
               >
-                {savingProfile ? "Saving..." : "Save Changes"}
+                {savingProfile
+                  ? "Saving..."
+                  : "Save Changes"}
               </button>
 
               <button
@@ -455,7 +645,11 @@ export default function UserDashboard({
                 disabled={savingProfile}
                 onClick={() => {
                   setEditingProfile(false);
-                  setFullName(currentUser.full_name);
+
+                  setFullName(
+                    currentUser.full_name
+                  );
+
                   setError("");
                 }}
               >
@@ -474,7 +668,10 @@ export default function UserDashboard({
         <div className="dashboard-panel-heading">
           <div>
             <h2>Security Settings</h2>
-            <p>Keep your WarmShare account secure.</p>
+
+            <p>
+              Keep your WarmShare account secure.
+            </p>
           </div>
 
           {!showPasswordForm && (
@@ -483,6 +680,7 @@ export default function UserDashboard({
               className="btn btn-outline"
               onClick={() => {
                 setShowPasswordForm(true);
+
                 setError("");
                 setMessage("");
               }}
@@ -503,11 +701,14 @@ export default function UserDashboard({
                 id="current-password"
                 type="password"
                 autoComplete="current-password"
-                value={passwordForm.current_password}
+                value={
+                  passwordForm.current_password
+                }
                 onChange={(event) =>
                   setPasswordForm((previous) => ({
                     ...previous,
-                    current_password: event.target.value,
+                    current_password:
+                      event.target.value,
                   }))
                 }
                 required
@@ -516,17 +717,22 @@ export default function UserDashboard({
             </div>
 
             <div className="form-group">
-              <label htmlFor="new-password">New Password</label>
+              <label htmlFor="new-password">
+                New Password
+              </label>
 
               <input
                 id="new-password"
                 type="password"
                 autoComplete="new-password"
-                value={passwordForm.new_password}
+                value={
+                  passwordForm.new_password
+                }
                 onChange={(event) =>
                   setPasswordForm((previous) => ({
                     ...previous,
-                    new_password: event.target.value,
+                    new_password:
+                      event.target.value,
                   }))
                 }
                 minLength={8}
@@ -545,11 +751,14 @@ export default function UserDashboard({
                 id="confirm-password"
                 type="password"
                 autoComplete="new-password"
-                value={passwordForm.confirm_password}
+                value={
+                  passwordForm.confirm_password
+                }
                 onChange={(event) =>
                   setPasswordForm((previous) => ({
                     ...previous,
-                    confirm_password: event.target.value,
+                    confirm_password:
+                      event.target.value,
                   }))
                 }
                 minLength={8}
@@ -576,7 +785,11 @@ export default function UserDashboard({
                 disabled={changingPassword}
                 onClick={() => {
                   setShowPasswordForm(false);
-                  setPasswordForm({ ...emptyPasswordForm });
+
+                  setPasswordForm({
+                    ...emptyPasswordForm,
+                  });
+
                   setError("");
                 }}
               >
@@ -594,47 +807,28 @@ export default function UserDashboard({
       <div className="dashboard-stats">
         <div className="dashboard-stat-card">
           <span>My Donations</span>
-          <strong>{listings.length}</strong>
+
+          <strong>
+            {listings.length}
+          </strong>
         </div>
 
         <div className="dashboard-stat-card">
           <span>Active Sessions</span>
-          <strong>{sessions.length}</strong>
+
+          <strong>
+            {sessions.length}
+          </strong>
         </div>
       </div>
 
       {/* ========================================
-          MY GROUPS
+          FUNCTIONAL GROUP MANAGEMENT
       ======================================== */}
 
-      <section className="dashboard-panel">
-        <div className="dashboard-panel-heading">
-          <div>
-            <h2>My Groups</h2>
-            <p>
-              Collaborate with others to organize clothing donations
-              through shared groups.
-            </p>
-          </div>
-        </div>
-
-        <div className="dashboard-empty">
-          <div className="dashboard-empty-icon">♧</div>
-
-          <h3>Groups Coming Soon</h3>
-
-          <p>
-            Group creation, membership and shared donation management
-            will be available after the group management system is implemented.
-          </p>
-        </div>
-      </section>
-
-      {/* ========================================
-          GROUP PERMISSIONS
-      ======================================== */}
-
-      <GroupPermissions />
+      <GroupPermissions
+        currentUserId={currentUser.id}
+      />
 
       {/* ========================================
           MY DONATIONS
@@ -644,17 +838,26 @@ export default function UserDashboard({
         <div className="dashboard-panel-heading">
           <div>
             <h2>My Donations</h2>
-            <p>Donation listings created by your account.</p>
+
+            <p>
+              Donation listings created
+              by your account.
+            </p>
           </div>
         </div>
 
         {listings.length === 0 ? (
           <div className="dashboard-empty">
-            <div className="dashboard-empty-icon">♥</div>
+            <div className="dashboard-empty-icon">
+              ♡
+            </div>
 
             <h3>No Donations Yet</h3>
 
-            <p>Your donation listings will appear here.</p>
+            <p>
+              Your donation listings
+              will appear here.
+            </p>
           </div>
         ) : (
           <div className="user-donation-list">
@@ -664,16 +867,27 @@ export default function UserDashboard({
                 key={listing.id}
               >
                 <div>
-                  <h3>{listing.title}</h3>
+                  <h3>
+                    {listing.title}
+                  </h3>
 
                   <p>
-                    {listing.category} · {listing.size} ·{" "}
+                    {listing.category}
+                    {" · "}
+                    {listing.size}
+                    {" · "}
                     {listing.condition}
                   </p>
 
-                  <p>Quantity: {listing.quantity}</p>
+                  <p>
+                    Quantity:{" "}
+                    {listing.quantity}
+                  </p>
 
-                  <p>Pickup address: {listing.pickup_address}</p>
+                  <p>
+                    Pickup address:{" "}
+                    {listing.pickup_address}
+                  </p>
                 </div>
 
                 <span className="dashboard-role">
@@ -695,16 +909,22 @@ export default function UserDashboard({
             <h2>Login Sessions</h2>
 
             <p>
-              Review active sessions and revoke sessions you no longer use.
+              Review active sessions and
+              revoke sessions you no longer use.
             </p>
           </div>
         </div>
 
         {sessions.length === 0 ? (
           <div className="dashboard-empty">
-            <h3>No Active Sessions</h3>
+            <h3>
+              No Active Sessions
+            </h3>
 
-            <p>Your account currently has no other active sessions.</p>
+            <p>
+              Your account currently has
+              no other active sessions.
+            </p>
           </div>
         ) : (
           <div className="user-session-list">
@@ -714,26 +934,35 @@ export default function UserDashboard({
                 key={session.id}
               >
                 <div>
-                  <h3>Session #{session.id}</h3>
+                  <h3>
+                    Session #{session.id}
+                  </h3>
 
                   <p>
                     <strong>Created:</strong>{" "}
-                    {formatDate(session.created_at)}
+                    {formatDate(
+                      session.created_at
+                    )}
                   </p>
 
                   <p>
                     <strong>Last used:</strong>{" "}
-                    {formatDate(session.last_used_at)}
+                    {formatDate(
+                      session.last_used_at
+                    )}
                   </p>
 
                   <p>
                     <strong>Expires:</strong>{" "}
-                    {formatDate(session.expires_at)}
+                    {formatDate(
+                      session.expires_at
+                    )}
                   </p>
 
                   {session.user_agent && (
                     <p>
-                      <strong>Device:</strong> {session.user_agent}
+                      <strong>Device:</strong>{" "}
+                      {session.user_agent}
                     </p>
                   )}
                 </div>
@@ -741,9 +970,13 @@ export default function UserDashboard({
                 <button
                   type="button"
                   className="btn btn-danger"
-                  disabled={busySessionId === session.id}
+                  disabled={
+                    busySessionId === session.id
+                  }
                   onClick={() =>
-                    void handleRevokeSession(session.id)
+                    void handleRevokeSession(
+                      session.id
+                    )
                   }
                 >
                   {busySessionId === session.id

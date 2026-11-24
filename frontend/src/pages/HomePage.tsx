@@ -48,8 +48,14 @@ import UserDashboard from "../components/dashboard/UserDashboard";
 
 export default function HomePage() {
   const [listings, setListings] = useState<Listing[]>([]);
-  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
-  const [form, setForm] = useState<ListingForm>({ ...emptyForm });
+  const [selectedListing, setSelectedListing] =
+    useState<Listing | null>(null);
+
+  const [form, setForm] = useState<ListingForm>({
+    ...emptyForm,
+    group_id: null,
+  });
+
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -59,7 +65,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Listing | null>(null);
+  const [deleteTarget, setDeleteTarget] =
+    useState<Listing | null>(null);
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -77,7 +84,7 @@ export default function HomePage() {
   // Dashboard navigation
   const [showDashboard, setShowDashboard] = useState(false);
 
-  // Restore login using the refresh cookie when the browser reloads.
+  // Restore login using the refresh cookie.
   useEffect(() => {
     async function restoreSession() {
       try {
@@ -107,7 +114,7 @@ export default function HomePage() {
     void restoreSession();
   }, []);
 
-  // Load donations.
+  // Load donations when the page opens.
   useEffect(() => {
     void loadListings();
   }, []);
@@ -131,6 +138,10 @@ export default function HomePage() {
       listing.owner_id === authUser.id
     );
   }
+
+  // ========================================
+  // DASHBOARD NAVIGATION
+  // ========================================
 
   function openDashboard() {
     if (!authUser || checkingSession) return;
@@ -157,6 +168,10 @@ export default function HomePage() {
     });
   }
 
+  // ========================================
+  // AUTHENTICATION
+  // ========================================
+
   function openAuth(mode: AuthMode) {
     setAuthMode(mode);
     setAuthName("");
@@ -173,7 +188,9 @@ export default function HomePage() {
       const response = await logoutUser();
 
       if (!response.ok) {
-        throw new Error("Server logout could not be confirmed.");
+        throw new Error(
+          "Server logout could not be confirmed."
+        );
       }
 
       logoutConfirmed = true;
@@ -188,6 +205,12 @@ export default function HomePage() {
       setShowForm(false);
       setEditingId(null);
       setDeleteTarget(null);
+      setSelectedListing(null);
+
+      setForm({
+        ...emptyForm,
+        group_id: null,
+      });
 
       setError("");
 
@@ -202,8 +225,9 @@ export default function HomePage() {
     }
   }
 
-  // Handle registration and login.
-  async function handleAuth(event: FormEvent<HTMLFormElement>) {
+  async function handleAuth(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     if (!authMode) return;
@@ -220,14 +244,21 @@ export default function HomePage() {
         );
 
         if (!registerResponse.ok) {
-          throw new Error(await readError(registerResponse));
+          throw new Error(
+            await readError(registerResponse)
+          );
         }
       }
 
-      const loginResponse = await loginUser(authEmail, authPassword);
+      const loginResponse = await loginUser(
+        authEmail,
+        authPassword
+      );
 
       if (!loginResponse.ok) {
-        throw new Error(await readError(loginResponse));
+        throw new Error(
+          await readError(loginResponse)
+        );
       }
 
       const loginData: {
@@ -235,15 +266,23 @@ export default function HomePage() {
         token_type: string;
       } = await loginResponse.json();
 
-      const profileResponse = await getCurrentUser(loginData.access_token);
+      const profileResponse = await getCurrentUser(
+        loginData.access_token
+      );
 
       if (!profileResponse.ok) {
-        throw new Error(await readError(profileResponse));
+        throw new Error(
+          await readError(profileResponse)
+        );
       }
 
-      const user: AuthUser = await profileResponse.json();
+      const user: AuthUser =
+        await profileResponse.json();
 
-      sessionStorage.setItem(TOKEN_KEY, loginData.access_token);
+      sessionStorage.setItem(
+        TOKEN_KEY,
+        loginData.access_token
+      );
 
       setAuthUser(user);
       setAuthMode(null);
@@ -257,14 +296,19 @@ export default function HomePage() {
       );
     } catch (err) {
       setAuthError(
-        err instanceof Error ? err.message : "Authentication failed"
+        err instanceof Error
+          ? err.message
+          : "Authentication failed"
       );
     } finally {
       setAuthBusy(false);
     }
   }
 
-  // Load all donation listings.
+  // ========================================
+  // LOAD DONATIONS
+  // ========================================
+
   async function loadListings() {
     setLoading(true);
     setError("");
@@ -273,21 +317,30 @@ export default function HomePage() {
       const response = await getListings();
 
       if (!response.ok) {
-        throw new Error(await readError(response));
+        throw new Error(
+          await readError(response)
+        );
       }
 
-      const data: Listing[] = await response.json();
+      const data: Listing[] =
+        await response.json();
+
       setListings(data);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to load donations"
+        err instanceof Error
+          ? err.message
+          : "Unable to load donations"
       );
     } finally {
       setLoading(false);
     }
   }
 
-  // Open the donation form.
+  // ========================================
+  // CREATE DONATION
+  // ========================================
+
   function openCreateForm() {
     if (checkingSession) return;
 
@@ -298,7 +351,13 @@ export default function HomePage() {
     }
 
     setShowDashboard(false);
-    setForm({ ...emptyForm });
+
+    // New donations start as personal donations.
+    setForm({
+      ...emptyForm,
+      group_id: null,
+    });
+
     setEditingId(null);
     setSelectedListing(null);
     setShowForm(true);
@@ -308,15 +367,22 @@ export default function HomePage() {
     scrollToSection("donation-form");
   }
 
-  // Only the owner can open the edit form.
+  // ========================================
+  // EDIT DONATION
+  // ========================================
+
   function openEditForm(listing: Listing) {
     if (!isOwner(listing)) {
-      setError("You can only edit donations created by your account.");
+      setError(
+        "You can only edit donations created by your account."
+      );
       return;
     }
 
     setShowDashboard(false);
 
+    // Keep the existing group assignment.
+    // Null means this is a personal donation.
     setForm({
       title: listing.title,
       category: listing.category,
@@ -326,6 +392,7 @@ export default function HomePage() {
       condition: listing.condition,
       quantity: listing.quantity,
       pickup_address: listing.pickup_address,
+      group_id: listing.group_id ?? null,
     });
 
     setEditingId(listing.id);
@@ -340,12 +407,20 @@ export default function HomePage() {
   function closeForm() {
     setShowForm(false);
     setEditingId(null);
-    setForm({ ...emptyForm });
+
+    setForm({
+      ...emptyForm,
+      group_id: null,
+    });
   }
+
+  // ========================================
+  // UPDATE FORM FIELDS
+  // ========================================
 
   function updateForm(
     field: keyof ListingForm,
-    value: string | number
+    value: string | number | null
   ) {
     setForm((previous) => ({
       ...previous,
@@ -353,11 +428,17 @@ export default function HomePage() {
     }));
   }
 
-  // Create or update a donation using JWT authentication.
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  // ========================================
+  // CREATE OR UPDATE DONATION
+  // ========================================
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
-    const token = sessionStorage.getItem(TOKEN_KEY);
+    const token =
+      sessionStorage.getItem(TOKEN_KEY);
 
     if (!authUser || !token) {
       closeForm();
@@ -370,8 +451,13 @@ export default function HomePage() {
         (listing) => listing.id === editingId
       );
 
-      if (!existingListing || !isOwner(existingListing)) {
-        setError("You do not have permission to edit this donation.");
+      if (
+        !existingListing ||
+        !isOwner(existingListing)
+      ) {
+        setError(
+          "You do not have permission to edit this donation."
+        );
         return;
       }
     }
@@ -383,7 +469,19 @@ export default function HomePage() {
     const isEditing = editingId !== null;
 
     try {
-      const response = await saveListing(form, token, editingId);
+      // Include group_id in the request.
+      // null = personal donation.
+      // number = selected group donation.
+      const donationData: ListingForm = {
+        ...form,
+        group_id: form.group_id ?? null,
+      };
+
+      const response = await saveListing(
+        donationData,
+        token,
+        editingId
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -391,10 +489,15 @@ export default function HomePage() {
           setAuthUser(null);
           closeForm();
           openAuth("login");
-          throw new Error("Your session expired. Please log in again.");
+
+          throw new Error(
+            "Your session expired. Please log in again."
+          );
         }
 
-        throw new Error(await readError(response));
+        throw new Error(
+          await readError(response)
+        );
       }
 
       closeForm();
@@ -410,14 +513,19 @@ export default function HomePage() {
       scrollToSection("donations");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to save donation"
+        err instanceof Error
+          ? err.message
+          : "Unable to save donation"
       );
     } finally {
       setSaving(false);
     }
   }
 
-  // Read a single donation.
+  // ========================================
+  // VIEW DONATION DETAILS
+  // ========================================
+
   async function viewDetails(id: number) {
     setError("");
     setMessage("");
@@ -426,10 +534,13 @@ export default function HomePage() {
       const response = await getListingById(id);
 
       if (!response.ok) {
-        throw new Error(await readError(response));
+        throw new Error(
+          await readError(response)
+        );
       }
 
-      const data: Listing = await response.json();
+      const data: Listing =
+        await response.json();
 
       setSelectedListing(data);
       setShowForm(false);
@@ -446,10 +557,15 @@ export default function HomePage() {
     }
   }
 
-  // Open the delete confirmation modal.
+  // ========================================
+  // DELETE DONATION
+  // ========================================
+
   function confirmDelete(listing: Listing) {
     if (!isOwner(listing)) {
-      setError("You can only delete donations created by your account.");
+      setError(
+        "You can only delete donations created by your account."
+      );
       return;
     }
 
@@ -459,14 +575,17 @@ export default function HomePage() {
 
   function cancelDelete() {
     if (deletingId !== null) return;
+
     setDeleteTarget(null);
   }
 
-  // Delete an owned donation.
   async function deleteListing() {
-    if (!deleteTarget || deletingId !== null) return;
+    if (!deleteTarget || deletingId !== null) {
+      return;
+    }
 
-    const token = sessionStorage.getItem(TOKEN_KEY);
+    const token =
+      sessionStorage.getItem(TOKEN_KEY);
 
     if (!authUser || !token) {
       setDeleteTarget(null);
@@ -476,7 +595,9 @@ export default function HomePage() {
 
     if (!isOwner(deleteTarget)) {
       setDeleteTarget(null);
-      setError("You do not have permission to delete this donation.");
+      setError(
+        "You do not have permission to delete this donation."
+      );
       return;
     }
 
@@ -487,7 +608,10 @@ export default function HomePage() {
     setMessage("");
 
     try {
-      const response = await deleteListingById(id, token);
+      const response = await deleteListingById(
+        id,
+        token
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -495,10 +619,15 @@ export default function HomePage() {
           setAuthUser(null);
           setDeleteTarget(null);
           openAuth("login");
-          throw new Error("Your session expired. Please log in again.");
+
+          throw new Error(
+            "Your session expired. Please log in again."
+          );
         }
 
-        throw new Error(await readError(response));
+        throw new Error(
+          await readError(response)
+        );
       }
 
       setDeleteTarget(null);
@@ -510,35 +639,58 @@ export default function HomePage() {
 
       await loadListings();
 
-      setMessage("Donation deleted successfully!");
+      setMessage(
+        "Donation deleted successfully!"
+      );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to delete donation"
+        err instanceof Error
+          ? err.message
+          : "Unable to delete donation"
       );
     } finally {
       setDeletingId(null);
     }
   }
 
-  // Search and filter donations.
-  const filteredListings = listings.filter((listing) => {
-    const keyword = search.trim().toLowerCase();
+  // ========================================
+  // SEARCH AND FILTER DONATIONS
+  // ========================================
 
-    const matchesSearch =
-      listing.title.toLowerCase().includes(keyword) ||
-      listing.pickup_address.toLowerCase().includes(keyword);
+  const filteredListings = listings.filter(
+    (listing) => {
+      const keyword =
+        search.trim().toLowerCase();
 
-    const matchesCategory =
-      categoryFilter === "all" ||
-      listing.category.toLowerCase() === categoryFilter;
+      const matchesSearch =
+        listing.title
+          .toLowerCase()
+          .includes(keyword) ||
+        listing.pickup_address
+          .toLowerCase()
+          .includes(keyword);
 
-    return matchesSearch && matchesCategory;
-  });
+      const matchesCategory =
+        categoryFilter === "all" ||
+        listing.category.toLowerCase() ===
+          categoryFilter;
+
+      return (
+        matchesSearch &&
+        matchesCategory
+      );
+    }
+  );
 
   const totalItems = listings.reduce(
-    (total, listing) => total + listing.quantity,
+    (total, listing) =>
+      total + listing.quantity,
     0
   );
+
+  // ========================================
+  // PAGE
+  // ========================================
 
   return (
     <div className="app">
@@ -560,7 +712,9 @@ export default function HomePage() {
                 onBack={closeDashboard}
               />
             ) : authUser.role === "moderator" ? (
-              <ModeratorDashboard onBack={closeDashboard} />
+              <ModeratorDashboard
+                onBack={closeDashboard}
+              />
             ) : (
               <UserDashboard
                 currentUser={authUser}
@@ -571,8 +725,12 @@ export default function HomePage() {
           </>
         ) : (
           <>
-            {/* Hero Section */}
-            <section className="hero" id="home">
+            {/* HERO SECTION */}
+
+            <section
+              className="hero"
+              id="home"
+            >
               <div className="hero-content">
                 <span className="hero-label">
                   A Community Donation Platform
@@ -581,12 +739,15 @@ export default function HomePage() {
                 <h1>
                   Share warmth.
                   <br />
-                  <span>Spread kindness.</span>
+                  <span>
+                    Spread kindness.
+                  </span>
                 </h1>
 
                 <p>
-                  Give your unused winter clothes a new purpose.
-                  Every jacket, sweater, and blanket can make
+                  Give your unused winter clothes
+                  a new purpose. Every jacket,
+                  sweater, and blanket can make
                   a difference.
                 </p>
 
@@ -602,24 +763,40 @@ export default function HomePage() {
 
               <div className="hero-art">
                 <div className="hero-circle">
-                  <span className="hero-emoji">🧥</span>
-                  <span className="hero-heart">♥</span>
+                  <span className="hero-emoji">
+                    {"\u{1F9E5}"}
+                  </span>
+
+                  <span className="hero-heart">
+                    {"\u2665"}
+                  </span>
                 </div>
               </div>
             </section>
 
-            {/* Statistics */}
+            {/* STATISTICS */}
+
             <section className="stats">
               <div className="stat-card">
-                <span className="stat-icon">📦</span>
+                <span className="stat-icon">
+                  {"\u{1F4E6}"}
+                </span>
+
                 <div>
-                  <h2>{listings.length}</h2>
-                  <p>Donation Listings</p>
+                  <h2>
+                    {listings.length}
+                  </h2>
+                  <p>
+                    Donation Listings
+                  </p>
                 </div>
               </div>
 
               <div className="stat-card">
-                <span className="stat-icon">📘</span>
+                <span className="stat-icon">
+                  {"\u{1F4D8}"}
+                </span>
+
                 <div>
                   <h2>{totalItems}</h2>
                   <p>Total Items</p>
@@ -627,30 +804,48 @@ export default function HomePage() {
               </div>
 
               <div className="stat-card">
-                <span className="stat-icon">💚</span>
+                <span className="stat-icon">
+                  {"\u{1F49A}"}
+                </span>
+
                 <div>
-                  <h2>{categories.length}</h2>
-                  <p>Donation Categories</p>
+                  <h2>
+                    {categories.length}
+                  </h2>
+                  <p>
+                    Donation Categories
+                  </p>
                 </div>
               </div>
             </section>
 
-            {/* Messages */}
+            {/* MESSAGES */}
+
             {message && (
-              <div className="alert alert-success" role="status">
+              <div
+                className="alert alert-success"
+                role="status"
+              >
                 {message}
               </div>
             )}
 
             {error && (
-              <div className="alert alert-error" role="alert">
+              <div
+                className="alert alert-error"
+                role="alert"
+              >
                 {error}
               </div>
             )}
 
-            {/* Donation Form Component */}
+            {/* DONATION FORM */}
+
             <DonationForm
-              showForm={showForm && authUser !== null}
+              showForm={
+                showForm &&
+                authUser !== null
+              }
               editingId={editingId}
               form={form}
               saving={saving}
@@ -659,21 +854,27 @@ export default function HomePage() {
               handleSubmit={handleSubmit}
             />
 
-            {/* Donation Details Component */}
+            {/* DONATION DETAILS */}
+
             <DonationDetails
               selectedListing={selectedListing}
               isOwner={isOwner}
               deletingId={deletingId}
-              closeDetails={() => setSelectedListing(null)}
+              closeDetails={() =>
+                setSelectedListing(null)
+              }
               openEditForm={openEditForm}
               confirmDelete={confirmDelete}
             />
 
-            {/* Donation List */}
+            {/* DONATION LIST */}
+
             <section
               className="donations-section"
               id="donations"
-              style={{ scrollMarginTop: 110 }}
+              style={{
+                scrollMarginTop: 110,
+              }}
             >
               <div className="section-heading">
                 <div>
@@ -681,81 +882,134 @@ export default function HomePage() {
                     BROWSE DONATIONS
                   </span>
 
-                  <h2>Available Donations</h2>
+                  <h2>
+                    Available Donations
+                  </h2>
 
                   <p>
-                    Discover clothes and winter essentials
-                    shared by the community.
+                    Discover clothes and winter
+                    essentials shared by the
+                    community.
                   </p>
                 </div>
               </div>
 
-              {/* Search and Category Filter */}
+              {/* SEARCH AND CATEGORY FILTER */}
+
               <div className="filter-bar">
                 <input
                   type="search"
                   placeholder="Search by title or pickup location..."
                   aria-label="Search donations"
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) =>
+                    setSearch(
+                      event.target.value
+                    )
+                  }
                 />
 
                 <select
                   aria-label="Filter by category"
                   value={categoryFilter}
                   onChange={(event) =>
-                    setCategoryFilter(event.target.value)
+                    setCategoryFilter(
+                      event.target.value
+                    )
                   }
                 >
-                  <option value="all">All Categories</option>
+                  <option value="all">
+                    All Categories
+                  </option>
 
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {formatText(category)}
-                    </option>
-                  ))}
+                  {categories.map(
+                    (category) => (
+                      <option
+                        key={category}
+                        value={category}
+                      >
+                        {formatText(
+                          category
+                        )}
+                      </option>
+                    )
+                  )}
                 </select>
 
                 <button
                   type="button"
                   className="btn btn-outline"
-                  onClick={() => void loadListings()}
+                  onClick={() =>
+                    void loadListings()
+                  }
                   disabled={loading}
                 >
-                  {loading ? "Loading..." : "Refresh"}
+                  {loading
+                    ? "Loading..."
+                    : "Refresh"}
                 </button>
               </div>
 
-              {/* Loading and Empty States */}
-              {loading && listings.length === 0 ? (
+              {/* LOADING AND EMPTY STATES */}
+
+              {loading &&
+              listings.length === 0 ? (
                 <div className="empty-state">
-                  <span className="empty-icon">⏳</span>
-                  <h3>Loading donations...</h3>
+                  <span className="empty-icon">
+                    {"\u23F3"}
+                  </span>
+
+                  <h3>
+                    Loading donations...
+                  </h3>
+
                   <p>
-                    Please wait while we retrieve the listings.
+                    Please wait while we
+                    retrieve the listings.
                   </p>
                 </div>
-              ) : filteredListings.length === 0 ? (
+              ) : filteredListings.length ===
+                0 ? (
                 <div className="empty-state">
-                  <span className="empty-icon">📦</span>
-                  <h3>No donations found</h3>
+                  <span className="empty-icon">
+                    {"\u{1F4E6}"}
+                  </span>
+
+                  <h3>
+                    No donations found
+                  </h3>
+
                   <p>
-                    Try another search or add a new donation.
+                    Try another search or
+                    add a new donation.
                   </p>
                 </div>
               ) : (
                 <div className="donation-grid">
-                  {filteredListings.map((listing) => (
-                    <DonationCard
-                      key={listing.id}
-                      listing={listing}
-                      isOwner={isOwner(listing)}
-                      deleting={deletingId === listing.id}
-                      viewDetails={viewDetails}
-                      openEditForm={openEditForm}
-                      confirmDelete={confirmDelete}
-                    />
-                  ))}
+                  {filteredListings.map(
+                    (listing) => (
+                      <DonationCard
+                        key={listing.id}
+                        listing={listing}
+                        isOwner={isOwner(
+                          listing
+                        )}
+                        deleting={
+                          deletingId ===
+                          listing.id
+                        }
+                        viewDetails={
+                          viewDetails
+                        }
+                        openEditForm={
+                          openEditForm
+                        }
+                        confirmDelete={
+                          confirmDelete
+                        }
+                      />
+                    )
+                  )}
                 </div>
               )}
             </section>
@@ -763,7 +1017,8 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* Authentication Modal Component */}
+      {/* AUTHENTICATION MODAL */}
+
       <AuthModal
         authMode={authMode}
         authName={authName}
@@ -774,12 +1029,15 @@ export default function HomePage() {
         setAuthName={setAuthName}
         setAuthEmail={setAuthEmail}
         setAuthPassword={setAuthPassword}
-        closeAuth={() => setAuthMode(null)}
+        closeAuth={() =>
+          setAuthMode(null)
+        }
         openAuth={openAuth}
         handleAuth={handleAuth}
       />
 
-      {/* Delete Confirmation Component */}
+      {/* DELETE CONFIRMATION */}
+
       <DeleteConfirmation
         deleteTarget={deleteTarget}
         deletingId={deletingId}

@@ -1,3 +1,4 @@
+
 export type AdminDashboardStats = {
   total_users: number;
   total_donors: number;
@@ -14,11 +15,35 @@ export type AdminUser = {
   id: number;
   full_name: string;
   email: string;
-  role: string;
+  role: "user" | "moderator" | "admin";
   is_banned: boolean;
   ban_reason: string | null;
   banned_at: string | null;
   created_at: string;
+};
+
+export type AdminUserPage = {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
+
+export type AdminUserDetail = AdminUser & {
+  updated_at?: string;
+  listings: unknown[];
+  owned_groups: unknown[];
+  group_memberships: unknown[];
+  sessions: unknown[];
+  recent_activity: AuditLog[];
+};
+
+export type AdminBulkBanResult = {
+  requested_count: number;
+  updated_count: number;
+  skipped_count: number;
+  skipped_user_ids: number[];
 };
 
 export type AuditLog = {
@@ -26,7 +51,7 @@ export type AuditLog = {
   actor_id: number;
   action: string;
   target_type: string;
-  target_id: number;
+  target_id: string;
   details: Record<string, unknown> | null;
   created_at: string;
 };

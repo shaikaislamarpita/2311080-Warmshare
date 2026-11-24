@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    UniqueConstraint,
     String,
     text,
 )
@@ -81,6 +82,14 @@ class Listing(Base):
         index=True,
     )
 
+    # Optional shared group; personal listings keep group_id=None.
+    group_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -109,6 +118,12 @@ class Listing(Base):
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+    group: Mapped["Group | None"] = relationship(
+        "Group",
+        back_populates="listings",
+        foreign_keys=[group_id],
     )
 
     # Explicitly identify owner_id because Listing has
@@ -205,10 +220,79 @@ class User(Base):
         passive_deletes=True,
     )
 
+    owned_groups: Mapped[list["Group"]] = relationship(
+        "Group",
+        back_populates="owner",
+        foreign_keys="Group.owner_id",
+    )
+
+    group_memberships: Mapped[list["GroupMember"]] = relationship(
+        "GroupMember",
+        back_populates="user",
+        foreign_keys="GroupMember.user_id",
+    )
+
     sessions: Mapped[list["UserSession"]] = relationship(
         "UserSession",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+
+# Shared donation groups. The owner is tracked separately from members.
+class Group(Base):
+    __tablename__ = "groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    owner: Mapped["User"] = relationship(
+        "User", back_populates="owned_groups", foreign_keys=[owner_id]
+    )
+    members: Mapped[list["GroupMember"]] = relationship(
+        "GroupMember", back_populates="group", cascade="all, delete-orphan"
+    )
+    listings: Mapped[list["Listing"]] = relationship(
+        "Listing", back_populates="group", foreign_keys="Listing.group_id"
+    )
+
+
+# Permissions are per user and per group; owners are authorized via Group.owner_id.
+class GroupMember(Base):
+    __tablename__ = "group_members"
+    __table_args__ = (
+        UniqueConstraint("group_id", "user_id", name="uq_group_members_group_user"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    group_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    can_create: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    can_edit: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    can_assign: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    group: Mapped["Group"] = relationship("Group", back_populates="members")
+    user: Mapped["User"] = relationship(
+        "User", back_populates="group_memberships", foreign_keys=[user_id]
     )
 
 
