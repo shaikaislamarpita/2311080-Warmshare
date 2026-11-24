@@ -1,21 +1,24 @@
 
 import { useEffect, useMemo, useState } from "react";
-
 import type {
   AdminDashboardStats,
   AdminUser,
+  AdminUserDetail,
+  AdminUserPage,
   AuditLog,
   FailedLoginAttempt,
 } from "../../types/admin";
 
 import {
   getAdminStats,
-  getAdminUsers,
-  getAuditLogs,
-  getFailedLoginAttempts,
+  getPaginatedAdminUsers,
+  getAdminUserDetail,
   updateUserRole,
   updateUserBan,
+  bulkUpdateUserBan,
   revokeUserSessions,
+  getAuditLogs,
+  getFailedLoginAttempts,
   exportAuditLogs,
 } from "../../services/adminService";
 
@@ -30,23 +33,39 @@ export default function AdminDashboard({
   currentUserId,
   onBack,
 }: AdminDashboardProps) {
-  const [stats, setStats] = useState<AdminDashboardStats | null>(null);
+  const [stats, setStats] =
+    useState<AdminDashboardStats | null>(null);
+
+  const [userPage, setUserPage] =
+    useState<AdminUserPage | null>(null);
+
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [failedLogins, setFailedLogins] = useState<FailedLoginAttempt[]>([]);
+
+  const [failedLogins, setFailedLogins] =
+    useState<FailedLoginAttempt[]>([]);
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
 
-  const [banReasons, setBanReasons] = useState<Record<number, string>>({});
-  const [busyUserId, setBusyUserId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [banReason, setBanReason] = useState("");
+
+  const [selectedUser, setSelectedUser] =
+    useState<AdminUserDetail | null>(null);
+
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  // ========================================
+  // LOAD DASHBOARD
+  // ========================================
 
   async function loadDashboard() {
     setLoading(true);
@@ -55,25 +74,27 @@ export default function AdminDashboard({
     try {
       const [
         statsData,
-        usersData,
+        pageData,
         auditData,
         failedLoginData,
       ] = await Promise.all([
         getAdminStats(),
-        getAdminUsers(),
+        getPaginatedAdminUsers(1, PAGE_SIZE),
         getAuditLogs(50),
         getFailedLoginAttempts(50),
       ]);
 
       setStats(statsData);
-      setUsers(usersData);
+      setUserPage(pageData);
+      setUsers(pageData.items);
       setAuditLogs(auditData);
       setFailedLogins(failedLoginData);
+      setSelectedIds([]);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to load the admin dashboard."
+          : "Unable to load Admin dashboard."
       );
     } finally {
       setLoading(false);
@@ -83,6 +104,98 @@ export default function AdminDashboard({
   useEffect(() => {
     void loadDashboard();
   }, []);
+
+  // ========================================
+  // REFRESH AFTER ADMIN ACTION
+  // IMPORTANT: Refresh statistics immediately.
+  // Preserve the current pagination page.
+  // ========================================
+
+  async function refreshAfterAction(userId?: number) {
+    try {
+      const currentPage = userPage?.page ?? 1;
+
+      const [
+        statsData,
+        pageData,
+        auditData,
+        failedLoginData,
+      ] = await Promise.all([
+        getAdminStats(),
+        getPaginatedAdminUsers(currentPage, PAGE_SIZE),
+        getAuditLogs(50),
+        getFailedLoginAttempts(50),
+      ]);
+
+      // Update dashboard statistics immediately.
+      setStats(statsData);
+
+      // Update users without resetting pagination.
+      setUserPage(pageData);
+      setUsers(pageData.items);
+
+      // Update audit and security information.
+      setAuditLogs(auditData);
+      setFailedLogins(failedLoginData);
+
+      // Refresh selected user's details if necessary.
+      if (
+        userId !== undefined &&
+        selectedUser?.id === userId
+      ) {
+        setSelectedUser(
+          await getAdminUserDetail(userId)
+        );
+      }
+    } catch (err) {
+      setError(
+        "The action succeeded, but the dashboard could not refresh. " +
+          (err instanceof Error
+            ? err.message
+            : "Please click Refresh.")
+      );
+    }
+  }
+
+  // ========================================
+  // LOAD A PAGE OF USERS
+  // ========================================
+
+  async function changePage(nextPage: number) {
+    if (
+      !userPage ||
+      nextPage < 1 ||
+      nextPage > userPage.total_pages
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getPaginatedAdminUsers(
+        nextPage,
+        PAGE_SIZE
+      );
+
+      setUserPage(data);
+      setUsers(data.items);
+      setSelectedIds([]);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load users."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ========================================
+  // SEARCH AND FILTER
+  // ========================================
 
   const filteredUsers = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -94,46 +207,87 @@ export default function AdminDashboard({
         String(user.id).includes(keyword);
 
       const matchesRole =
-        roleFilter === "all" || user.role === roleFilter;
+        roleFilter === "all" ||
+        user.role === roleFilter;
 
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "banned" && user.is_banned) ||
         (statusFilter === "active" && !user.is_banned);
 
-      return matchesSearch && matchesRole && matchesStatus;
+      return (
+        matchesSearch &&
+        matchesRole &&
+        matchesStatus
+      );
     });
   }, [users, search, roleFilter, statusFilter]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredUsers.length / PAGE_SIZE)
+  const eligibleVisibleUsers = filteredUsers.filter(
+    (user) =>
+      user.id !== currentUserId &&
+      user.role !== "admin"
   );
 
-  const visibleUsers = filteredUsers.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
+  const allVisibleSelected =
+    eligibleVisibleUsers.length > 0 &&
+    eligibleVisibleUsers.every((user) =>
+      selectedIds.includes(user.id)
+    );
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, roleFilter, statusFilter]);
+  function toggleSelection(userId: number) {
+    setSelectedIds((previous) =>
+      previous.includes(userId)
+        ? previous.filter((id) => id !== userId)
+        : [...previous, userId]
+    );
+  }
+
+  function toggleAllVisible() {
+    const eligibleIds = eligibleVisibleUsers.map(
+      (user) => user.id
+    );
+
+    if (
+      eligibleIds.every((id) =>
+        selectedIds.includes(id)
+      )
+    ) {
+      setSelectedIds((previous) =>
+        previous.filter(
+          (id) => !eligibleIds.includes(id)
+        )
+      );
+    } else {
+      setSelectedIds((previous) =>
+        Array.from(
+          new Set([...previous, ...eligibleIds])
+        )
+      );
+    }
+  }
+
+  // ========================================
+  // CHANGE USER ROLE
+  // ========================================
 
   async function handleRoleChange(
     userId: number,
     role: "user" | "moderator"
   ) {
-    if (userId === currentUserId) {
-      setError("You cannot change your own role.");
+    if (userId === currentUserId || busy) {
       return;
     }
 
-    setBusyUserId(userId);
+    setBusy(true);
     setError("");
     setMessage("");
 
     try {
-      const updatedUser = await updateUserRole(userId, role);
+      const updatedUser = await updateUserRole(
+        userId,
+        role
+      );
 
       setUsers((previous) =>
         previous.map((user) =>
@@ -142,31 +296,50 @@ export default function AdminDashboard({
       );
 
       setMessage("User role updated successfully.");
+
+      // Refresh statistics immediately after role change.
+      await refreshAfterAction(userId);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to update user role."
+        err instanceof Error
+          ? err.message
+          : "Unable to update user role."
       );
     } finally {
-      setBusyUserId(null);
+      setBusy(false);
     }
   }
 
+  // ========================================
+  // BAN OR UNBAN ONE USER
+  // ========================================
+
   async function handleBanToggle(user: AdminUser) {
-    if (user.id === currentUserId) {
-      setError("You cannot ban your own account.");
+    if (
+      user.id === currentUserId ||
+      user.role === "admin" ||
+      busy
+    ) {
       return;
     }
 
     const reason = user.is_banned
       ? null
-      : (banReasons[user.id] || "").trim();
+      : window.prompt(
+          "Enter a reason for banning this user:"
+        )?.trim() || null;
 
-    if (!user.is_banned && (reason === null || reason.length < 3)) {
-      setError("Please enter a ban reason of at least 3 characters.");
+    if (
+      !user.is_banned &&
+      (!reason || reason.length < 3)
+    ) {
+      setError(
+        "A ban reason of at least 3 characters is required."
+      );
       return;
     }
 
-    setBusyUserId(user.id);
+    setBusy(true);
     setError("");
     setMessage("");
 
@@ -184,53 +357,160 @@ export default function AdminDashboard({
       );
 
       setMessage(
-        user.is_banned
-          ? "User unbanned successfully."
-          : "User banned successfully."
+        updatedUser.is_banned
+          ? "User banned successfully."
+          : "User unbanned successfully."
       );
 
-      if (!user.is_banned) {
-        setBanReasons((previous) => ({
-          ...previous,
-          [user.id]: "",
-        }));
-      }
+      // Refresh statistics immediately after ban/unban.
+      await refreshAfterAction(user.id);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to update user status."
+        err instanceof Error
+          ? err.message
+          : "Unable to update user status."
       );
     } finally {
-      setBusyUserId(null);
+      setBusy(false);
     }
   }
 
-  async function handleRevokeSessions(user: AdminUser) {
-    if (user.id === currentUserId) {
-      setError("Use your own account session settings to manage your sessions.");
+  // ========================================
+  // BULK BAN / UNBAN
+  // ========================================
+
+  async function handleBulkBan(isBanned: boolean) {
+    if (busy) return;
+
+    if (selectedIds.length === 0) {
+      setError("Select at least one user first.");
+      return;
+    }
+
+    const reason = isBanned
+      ? banReason.trim()
+      : null;
+
+    if (
+      isBanned &&
+      (!reason || reason.length < 3)
+    ) {
+      setError(
+        "Enter a ban reason of at least 3 characters."
+      );
       return;
     }
 
     const confirmed = window.confirm(
-      `Revoke all active sessions for ${user.full_name}?`
+      `${isBanned ? "Ban" : "Unban"} ${selectedIds.length} selected users?`
     );
 
     if (!confirmed) return;
 
-    setBusyUserId(user.id);
+    setBusy(true);
     setError("");
     setMessage("");
 
     try {
-      await revokeUserSessions(user.id);
-      setMessage(`Active sessions revoked for ${user.full_name}.`);
+      const result = await bulkUpdateUserBan(
+        selectedIds,
+        isBanned,
+        reason
+      );
+
+      setMessage(
+        `Requested: ${result.requested_count}. ` +
+          `Updated: ${result.updated_count}. ` +
+          `Skipped: ${result.skipped_count}.`
+      );
+
+      setSelectedIds([]);
+      setBanReason("");
+
+      // Refresh statistics immediately after bulk action.
+      await refreshAfterAction();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to revoke sessions."
+        err instanceof Error
+          ? err.message
+          : "Bulk operation failed."
       );
     } finally {
-      setBusyUserId(null);
+      setBusy(false);
     }
   }
+
+  // ========================================
+  // VIEW USER DETAILS
+  // ========================================
+
+  async function handleViewDetails(userId: number) {
+    setLoadingDetail(true);
+    setError("");
+    setSelectedUser(null);
+
+    try {
+      const details = await getAdminUserDetail(userId);
+
+      setSelectedUser(details);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load user details."
+      );
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  // ========================================
+  // REVOKE SESSIONS
+  // ========================================
+
+  async function handleRevokeSessions(user: AdminUser) {
+    if (
+      user.id === currentUserId ||
+      user.role === "admin" ||
+      busy
+    ) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Revoke all sessions for ${user.full_name}?`
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await revokeUserSessions(user.id);
+
+      setMessage(
+        `${result.revoked_sessions} active sessions revoked.`
+      );
+
+      await refreshAfterAction(user.id);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to revoke sessions."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ========================================
+  // EXPORT AUDIT LOGS
+  // ========================================
 
   async function handleExport() {
     setExporting(true);
@@ -239,28 +519,38 @@ export default function AdminDashboard({
 
     try {
       const file = await exportAuditLogs();
+
       const url = URL.createObjectURL(file);
       const link = document.createElement("a");
 
       link.href = url;
       link.download = "warmshare-audit-logs.csv";
+
       document.body.appendChild(link);
       link.click();
       link.remove();
 
       URL.revokeObjectURL(url);
 
-      setMessage("Audit log export downloaded.");
+      setMessage(
+        "Audit logs exported successfully."
+      );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to export audit logs."
+        err instanceof Error
+          ? err.message
+          : "Unable to export audit logs."
       );
     } finally {
       setExporting(false);
     }
   }
 
-  if (loading) {
+  // ========================================
+  // LOADING SCREEN
+  // ========================================
+
+  if (loading && !userPage) {
     return (
       <section className="dashboard-page">
         <p>Loading Admin Dashboard...</p>
@@ -268,19 +558,36 @@ export default function AdminDashboard({
     );
   }
 
+  const totalPages = Math.max(
+    1,
+    userPage?.total_pages ?? 0
+  );
+
   return (
     <section className="dashboard-page">
+
+      {/* ========================================
+          DASHBOARD HEADER
+      ======================================== */}
+
       <div className="dashboard-header">
         <div>
-          <span className="section-label">WARMSHARE ADMINISTRATION</span>
+          <span className="section-label">
+            WARMSHARE ADMINISTRATION
+          </span>
+
           <h1>Admin Dashboard</h1>
-          <p>Manage users, monitor activity, and oversee platform security.</p>
+
+          <p>
+            Manage users, monitor activity, and oversee platform security.
+          </p>
         </div>
 
         <div className="dashboard-header-actions">
           <button
             type="button"
             className="btn btn-outline"
+            disabled={busy || loading}
             onClick={() => void loadDashboard()}
           >
             Refresh
@@ -296,79 +603,91 @@ export default function AdminDashboard({
         </div>
       </div>
 
+      {/* ========================================
+          SUCCESS AND ERROR MESSAGES
+      ======================================== */}
+
       {error && (
-        <div className="alert alert-error" role="alert">
+        <div
+          className="alert alert-error"
+          role="alert"
+        >
           {error}
         </div>
       )}
 
       {message && (
-        <div className="alert alert-success" role="status">
+        <div
+          className="alert alert-success"
+          role="status"
+        >
           {message}
         </div>
       )}
 
       {stats && (
         <>
+
+          {/* ========================================
+              DASHBOARD STATISTICS
+          ======================================== */}
+
           <div className="dashboard-stats">
-            <div className="dashboard-stat-card">
-              <span>Total Users</span>
-              <strong>{stats.total_users}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Donors</span>
-              <strong>{stats.total_donors}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Moderators</span>
-              <strong>{stats.total_moderators}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Banned Users</span>
-              <strong>{stats.total_banned_users}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Total Listings</span>
-              <strong>{stats.total_listings}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Visible Listings</span>
-              <strong>{stats.visible_listings}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Hidden Listings</span>
-              <strong>{stats.hidden_listings}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Pending Reports</span>
-              <strong>{stats.pending_reports}</strong>
-            </div>
-            <div className="dashboard-stat-card">
-              <span>Active Sessions</span>
-              <strong>{stats.active_sessions}</strong>
-            </div>
+            {[
+              ["Total Users", stats.total_users],
+              ["Donors", stats.total_donors],
+              ["Moderators", stats.total_moderators],
+              ["Banned Users", stats.total_banned_users],
+              ["Total Listings", stats.total_listings],
+              ["Visible Listings", stats.visible_listings],
+              ["Hidden Listings", stats.hidden_listings],
+              ["Pending Reports", stats.pending_reports],
+              ["Active Sessions", stats.active_sessions],
+            ].map(([label, value]) => (
+              <div
+                className="dashboard-stat-card"
+                key={label}
+              >
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
           </div>
 
+          {/* ========================================
+              USER MANAGEMENT
+          ======================================== */}
+
           <section className="dashboard-panel">
+
             <div className="dashboard-panel-heading">
               <div>
                 <h2>User Management</h2>
-                <p>Search users, manage roles, and control account access.</p>
+
+                <p>
+                  Search and manage registered WarmShare accounts.
+                </p>
               </div>
             </div>
+
+            {/* SEARCH AND FILTER */}
 
             <div className="dashboard-filters">
               <input
                 type="search"
-                placeholder="Search by name, email, or ID..."
+                placeholder="Search current page by name, email, or ID..."
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
               />
 
               <select
                 value={roleFilter}
-                onChange={(event) => setRoleFilter(event.target.value)}
-                aria-label="Filter users by role"
+                onChange={(event) =>
+                  setRoleFilter(event.target.value)
+                }
+                aria-label="Filter by role"
               >
                 <option value="all">All Roles</option>
                 <option value="user">Users</option>
@@ -378,8 +697,10 @@ export default function AdminDashboard({
 
               <select
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                aria-label="Filter users by account status"
+                onChange={(event) =>
+                  setStatusFilter(event.target.value)
+                }
+                aria-label="Filter by status"
               >
                 <option value="all">All Statuses</option>
                 <option value="active">Active</option>
@@ -387,10 +708,69 @@ export default function AdminDashboard({
               </select>
             </div>
 
+            {/* ========================================
+                BULK ACTIONS
+            ======================================== */}
+
+            <div className="dashboard-user-actions">
+              <span>
+                {selectedIds.length} users selected
+              </span>
+
+              <input
+                type="text"
+                placeholder="Reason for bulk ban"
+                value={banReason}
+                onChange={(event) =>
+                  setBanReason(event.target.value)
+                }
+              />
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={
+                  busy || selectedIds.length === 0
+                }
+                onClick={() =>
+                  void handleBulkBan(true)
+                }
+              >
+                Bulk Ban
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={
+                  busy || selectedIds.length === 0
+                }
+                onClick={() =>
+                  void handleBulkBan(false)
+                }
+              >
+                Bulk Unban
+              </button>
+            </div>
+
+            {/* ========================================
+                USERS TABLE
+            ======================================== */}
+
             <div className="dashboard-table-wrapper">
               <table className="dashboard-table">
+
                 <thead>
                   <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisible}
+                        aria-label="Select all eligible visible users"
+                      />
+                    </th>
+
                     <th>User</th>
                     <th>Role</th>
                     <th>Status</th>
@@ -401,24 +781,58 @@ export default function AdminDashboard({
                 </thead>
 
                 <tbody>
-                  {visibleUsers.map((user) => {
-                    const isSelf = user.id === currentUserId;
-                    const isAdmin = user.role === "admin";
-                    const isBusy = busyUserId === user.id;
+                  {filteredUsers.map((user) => {
+                    const isSelf =
+                      user.id === currentUserId;
+
+                    const isAdmin =
+                      user.role === "admin";
+
+                    const protectedUser =
+                      isSelf || isAdmin;
 
                     return (
                       <tr key={user.id}>
+
+                        {/* SELECTION */}
+
                         <td>
-                          <strong>{user.full_name}</strong>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(
+                              user.id
+                            )}
+                            disabled={
+                              protectedUser || busy
+                            }
+                            onChange={() =>
+                              toggleSelection(user.id)
+                            }
+                            aria-label={`Select ${user.full_name}`}
+                          />
+                        </td>
+
+                        {/* USER INFORMATION */}
+
+                        <td>
+                          <strong>
+                            {user.full_name}
+                          </strong>
+
                           <small>{user.email}</small>
+
                           <small>ID: {user.id}</small>
                         </td>
+
+                        {/* ROLE */}
 
                         <td>
                           <span className="dashboard-role">
                             {user.role}
                           </span>
                         </td>
+
+                        {/* STATUS */}
 
                         <td>
                           <span
@@ -428,135 +842,308 @@ export default function AdminDashboard({
                                 : "dashboard-status active"
                             }
                           >
-                            {user.is_banned ? "Banned" : "Active"}
+                            {user.is_banned
+                              ? "Banned"
+                              : "Active"}
                           </span>
                         </td>
 
-                        <td>
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </td>
+                        {/* JOINED DATE */}
 
                         <td>
-                          {!isAdmin && !isSelf ? (
+                          {new Date(
+                            user.created_at
+                          ).toLocaleDateString()}
+                        </td>
+
+                        {/* MANAGE ROLE */}
+
+                        <td>
+                          {!protectedUser ? (
                             <select
-                              aria-label={`Change role for ${user.full_name}`}
                               value={user.role}
-                              disabled={isBusy}
+                              disabled={busy}
+                              aria-label={`Change role for ${user.full_name}`}
                               onChange={(event) =>
                                 void handleRoleChange(
                                   user.id,
-                                  event.target.value as "user" | "moderator"
+                                  event.target.value as
+                                    | "user"
+                                    | "moderator"
                                 )
                               }
                             >
-                              <option value="user">User</option>
-                              <option value="moderator">Moderator</option>
+                              <option value="user">
+                                User
+                              </option>
+
+                              <option value="moderator">
+                                Moderator
+                              </option>
                             </select>
                           ) : (
-                            <span>{isSelf ? "Your account" : "Protected"}</span>
+                            <span>
+                              {isSelf
+                                ? "Your account"
+                                : "Protected Admin"}
+                            </span>
                           )}
                         </td>
+
+                        {/* ACCOUNT ACTIONS */}
 
                         <td>
-                          {!isAdmin && !isSelf ? (
-                            <div className="dashboard-user-actions">
-                              {!user.is_banned && (
-                                <input
-                                  type="text"
-                                  placeholder="Ban reason"
-                                  aria-label={`Ban reason for ${user.full_name}`}
-                                  value={banReasons[user.id] || ""}
-                                  onChange={(event) =>
-                                    setBanReasons((previous) => ({
-                                      ...previous,
-                                      [user.id]: event.target.value,
-                                    }))
-                                  }
-                                />
-                              )}
+                          <div className="dashboard-user-actions">
 
-                              <button
-                                type="button"
-                                className={
-                                  user.is_banned
-                                    ? "btn btn-primary"
-                                    : "btn btn-danger"
-                                }
-                                disabled={isBusy}
-                                onClick={() => void handleBanToggle(user)}
-                              >
-                                {isBusy
-                                  ? "Please wait..."
-                                  : user.is_banned
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              disabled={loadingDetail}
+                              onClick={() =>
+                                void handleViewDetails(
+                                  user.id
+                                )
+                              }
+                            >
+                              View Details
+                            </button>
+
+                            {!protectedUser && (
+                              <>
+                                <button
+                                  type="button"
+                                  className={
+                                    user.is_banned
+                                      ? "btn btn-primary"
+                                      : "btn btn-danger"
+                                  }
+                                  disabled={busy}
+                                  onClick={() =>
+                                    void handleBanToggle(
+                                      user
+                                    )
+                                  }
+                                >
+                                  {user.is_banned
                                     ? "Unban"
                                     : "Ban"}
-                              </button>
+                                </button>
 
-                              <button
-                                type="button"
-                                className="btn btn-outline"
-                                disabled={isBusy}
-                                onClick={() => void handleRevokeSessions(user)}
-                              >
-                                Revoke Sessions
-                              </button>
-                            </div>
-                          ) : (
-                            <span>Protected account</span>
-                          )}
+                                <button
+                                  type="button"
+                                  className="btn btn-outline"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    void handleRevokeSessions(
+                                      user
+                                    )
+                                  }
+                                >
+                                  Revoke Sessions
+                                </button>
+                              </>
+                            )}
+
+                          </div>
                         </td>
+
                       </tr>
                     );
                   })}
 
-                  {visibleUsers.length === 0 && (
+                  {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={6}>No matching users found.</td>
+                      <td colSpan={7}>
+                        No matching users found on this page.
+                      </td>
                     </tr>
                   )}
                 </tbody>
+
               </table>
             </div>
 
+            {/* ========================================
+                SERVER-SIDE PAGINATION
+            ======================================== */}
+
             <div className="dashboard-pagination">
+
               <span>
-                Showing{" "}
-                {filteredUsers.length === 0
-                  ? 0
-                  : (page - 1) * PAGE_SIZE + 1}
-                {" - "}
-                {Math.min(page * PAGE_SIZE, filteredUsers.length)}
-                {" of "}
-                {filteredUsers.length} users
+                Total registered users:{" "}
+                {userPage?.total ?? 0}
               </span>
 
               <div>
                 <button
                   type="button"
                   className="btn btn-outline"
-                  disabled={page <= 1}
-                  onClick={() => setPage((previous) => previous - 1)}
+                  disabled={
+                    loading ||
+                    (userPage?.page ?? 1) <= 1
+                  }
+                  onClick={() =>
+                    void changePage(
+                      (userPage?.page ?? 1) - 1
+                    )
+                  }
                 >
                   Previous
                 </button>
 
                 <span>
-                  Page {page} of {totalPages}
+                  Page {userPage?.page ?? 1} of{" "}
+                  {totalPages}
                 </span>
 
                 <button
                   type="button"
                   className="btn btn-outline"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((previous) => previous + 1)}
+                  disabled={
+                    loading ||
+                    (userPage?.page ?? 1) >= totalPages
+                  }
+                  onClick={() =>
+                    void changePage(
+                      (userPage?.page ?? 1) + 1
+                    )
+                  }
                 >
                   Next
                 </button>
               </div>
+
             </div>
+
           </section>
 
+          {/* ========================================
+              USER DETAILS
+          ======================================== */}
+
+          {loadingDetail && (
+            <section className="dashboard-panel">
+              <p>Loading user details...</p>
+            </section>
+          )}
+
+          {selectedUser && (
+            <section className="dashboard-panel">
+
+              <div className="dashboard-panel-heading">
+                <div>
+                  <h2>User Details</h2>
+                  <p>{selectedUser.full_name}</p>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() =>
+                    setSelectedUser(null)
+                  }
+                >
+                  Close Details
+                </button>
+              </div>
+
+              <div className="dashboard-user-details">
+
+                <p>
+                  <strong>User ID:</strong>{" "}
+                  {selectedUser.id}
+                </p>
+
+                <p>
+                  <strong>Name:</strong>{" "}
+                  {selectedUser.full_name}
+                </p>
+
+                <p>
+                  <strong>Email:</strong>{" "}
+                  {selectedUser.email}
+                </p>
+
+                <p>
+                  <strong>Role:</strong>{" "}
+                  {selectedUser.role}
+                </p>
+
+                <p>
+                  <strong>Status:</strong>{" "}
+                  {selectedUser.is_banned
+                    ? "Banned"
+                    : "Active"}
+                </p>
+
+                <p>
+                  <strong>Ban reason:</strong>{" "}
+                  {selectedUser.ban_reason || "None"}
+                </p>
+
+                <p>
+                  <strong>Joined:</strong>{" "}
+                  {new Date(
+                    selectedUser.created_at
+                  ).toLocaleString()}
+                </p>
+
+                <p>
+                  <strong>Last updated:</strong>{" "}
+                  {selectedUser.updated_at
+                    ? new Date(
+                        selectedUser.updated_at
+                      ).toLocaleString()
+                    : "Not available"}
+                </p>
+
+              </div>
+
+              {(
+                [
+                  ["Listings", selectedUser.listings],
+                  ["Owned Groups", selectedUser.owned_groups],
+                  [
+                    "Group Memberships",
+                    selectedUser.group_memberships,
+                  ],
+                  ["Login Sessions", selectedUser.sessions],
+                  [
+                    "Recent Activity",
+                    selectedUser.recent_activity,
+                  ],
+                ] as [string, unknown[]][]
+              ).map(([title, items]) => (
+                <div key={title}>
+
+                  <h3>
+                    {title} ({items.length})
+                  </h3>
+
+                  {items.length === 0 ? (
+                    <p>No records found.</p>
+                  ) : (
+                    <pre className="admin-detail-json">
+                      {JSON.stringify(
+                        items,
+                        null,
+                        2
+                      )}
+                    </pre>
+                  )}
+
+                </div>
+              ))}
+
+            </section>
+          )}
+
+          {/* ========================================
+              SECURITY MONITORING
+          ======================================== */}
+
           <section className="dashboard-panel">
+
             <div className="dashboard-panel-heading">
               <div>
                 <h2>Security Monitoring</h2>
@@ -566,6 +1153,7 @@ export default function AdminDashboard({
 
             <div className="dashboard-table-wrapper">
               <table className="dashboard-table">
+
                 <thead>
                   <tr>
                     <th>Account Reference</th>
@@ -577,51 +1165,87 @@ export default function AdminDashboard({
                 </thead>
 
                 <tbody>
-                  {failedLogins.map((attempt, index) => (
-                    <tr key={`${attempt.identifier_reference}-${index}`}>
-                      <td>{attempt.identifier_reference}</td>
-                      <td>{attempt.failed_attempts}</td>
-                      <td>{attempt.is_blocked ? "Yes" : "No"}</td>
-                      <td>
-                        {attempt.blocked_until
-                          ? new Date(attempt.blocked_until).toLocaleString()
-                          : "—"}
-                      </td>
-                      <td>
-                        {new Date(attempt.updated_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {failedLogins.map(
+                    (attempt, index) => (
+                      <tr
+                        key={`${attempt.identifier_reference}-${index}`}
+                      >
+                        <td>
+                          {attempt.identifier_reference}
+                        </td>
+
+                        <td>
+                          {attempt.failed_attempts}
+                        </td>
+
+                        <td>
+                          {attempt.is_blocked
+                            ? "Yes"
+                            : "No"}
+                        </td>
+
+                        <td>
+                          {attempt.blocked_until
+                            ? new Date(
+                                attempt.blocked_until
+                              ).toLocaleString()
+                            : "—"}
+                        </td>
+
+                        <td>
+                          {new Date(
+                            attempt.updated_at
+                          ).toLocaleString()}
+                        </td>
+                      </tr>
+                    )
+                  )}
 
                   {failedLogins.length === 0 && (
                     <tr>
-                      <td colSpan={5}>No failed login records found.</td>
+                      <td colSpan={5}>
+                        No failed login records found.
+                      </td>
                     </tr>
                   )}
                 </tbody>
+
               </table>
             </div>
+
           </section>
 
+          {/* ========================================
+              AUDIT LOGS
+          ======================================== */}
+
           <section className="dashboard-panel">
+
             <div className="dashboard-panel-heading">
               <div>
                 <h2>Audit Logs</h2>
-                <p>Recent administrative activity on WarmShare.</p>
+                <p>
+                  Recent administrative activity on WarmShare.
+                </p>
               </div>
 
               <button
                 type="button"
                 className="btn btn-primary"
                 disabled={exporting}
-                onClick={() => void handleExport()}
+                onClick={() =>
+                  void handleExport()
+                }
               >
-                {exporting ? "Exporting..." : "Export CSV"}
+                {exporting
+                  ? "Exporting..."
+                  : "Export CSV"}
               </button>
             </div>
 
             <div className="dashboard-table-wrapper">
               <table className="dashboard-table">
+
                 <thead>
                   <tr>
                     <th>Actor ID</th>
@@ -640,22 +1264,30 @@ export default function AdminDashboard({
                       <td>{log.target_type}</td>
                       <td>{log.target_id}</td>
                       <td>
-                        {new Date(log.created_at).toLocaleString()}
+                        {new Date(
+                          log.created_at
+                        ).toLocaleString()}
                       </td>
                     </tr>
                   ))}
 
                   {auditLogs.length === 0 && (
                     <tr>
-                      <td colSpan={5}>No audit logs found.</td>
+                      <td colSpan={5}>
+                        No audit logs found.
+                      </td>
                     </tr>
                   )}
                 </tbody>
+
               </table>
             </div>
+
           </section>
+
         </>
       )}
+
     </section>
   );
 }

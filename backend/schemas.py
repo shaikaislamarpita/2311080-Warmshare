@@ -62,6 +62,13 @@ class ListingCreate(BaseModel):
         max_length=255,
     )
 
+    # Optional: None means a personal donation.
+    # A group donation requires backend permission checks.
+    group_id: int | None = Field(
+        default=None,
+        gt=0,
+    )
+
 
 # ========================================
 # UPDATE DONATION SCHEMA
@@ -346,3 +353,187 @@ class FailedLoginAttemptResponse(BaseModel):
     blocked_until: datetime | None = None
     updated_at: datetime
     is_blocked: bool
+
+
+# ========================================
+# SHARED GROUP SCHEMAS
+# ISSUE #33
+# ========================================
+
+class GroupCreate(BaseModel):
+    name: str = Field(
+        min_length=3,
+        max_length=150,
+    )
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+
+class GroupUpdate(BaseModel):
+    name: str = Field(
+        min_length=3,
+        max_length=150,
+    )
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+
+class GroupMemberCreate(BaseModel):
+    user_id: int = Field(
+        gt=0,
+    )
+
+    can_create: bool = False
+    can_edit: bool = False
+    can_assign: bool = False
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+
+class GroupMemberPermissionUpdate(BaseModel):
+    can_create: bool
+    can_edit: bool
+    can_assign: bool
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+
+class GroupMemberResponse(BaseModel):
+    id: int
+    group_id: int
+    user_id: int
+    can_create: bool
+    can_edit: bool
+    can_assign: bool
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+
+class GroupResponse(BaseModel):
+    id: int
+    name: str
+    owner_id: int
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+
+class GroupDetailResponse(GroupResponse):
+    members: list[GroupMemberResponse] = Field(
+        default_factory=list,
+    )
+
+    listings: list[ListingResponse] = Field(
+        default_factory=list,
+    )
+
+
+# ========================================
+# ADMIN BULK USER MANAGEMENT
+# ISSUE #33
+# ========================================
+
+class AdminBulkBanUpdate(BaseModel):
+    user_ids: list[int] = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    is_banned: bool
+
+    reason: str | None = Field(
+        default=None,
+        max_length=500,
+    )
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    @model_validator(mode="after")
+    def validate_bulk_ban(self):
+        if len(set(self.user_ids)) != len(self.user_ids):
+            raise ValueError(
+                "Duplicate user IDs are not allowed."
+            )
+
+        if any(user_id <= 0 for user_id in self.user_ids):
+            raise ValueError(
+                "Every user ID must be positive."
+            )
+
+        if self.is_banned and (
+            not self.reason or not self.reason.strip()
+        ):
+            raise ValueError(
+                "A reason is required when banning users."
+            )
+
+        return self
+
+
+class AdminBulkBanResult(BaseModel):
+    requested_count: int
+    updated_count: int
+    skipped_count: int
+    skipped_user_ids: list[int] = Field(
+        default_factory=list,
+    )
+
+
+# ========================================
+# ADMIN USER DETAIL AND PAGINATION
+# ISSUE #33
+# ========================================
+
+class AdminUserDetailResponse(AdminUserResponse):
+    listings: list[ListingResponse] = Field(
+        default_factory=list,
+    )
+
+    owned_groups: list[GroupResponse] = Field(
+        default_factory=list,
+    )
+
+    group_memberships: list[GroupMemberResponse] = Field(
+        default_factory=list,
+    )
+
+    sessions: list[UserSessionResponse] = Field(
+        default_factory=list,
+    )
+
+    recent_activity: list[AuditLogResponse] = Field(
+        default_factory=list,
+    )
+
+
+class AdminUserPageResponse(BaseModel):
+    items: list[AdminUserResponse]
+    total: int = Field(
+        ge=0,
+    )
+    page: int = Field(
+        ge=1,
+    )
+    page_size: int = Field(
+        ge=1,
+    )
+    total_pages: int = Field(
+        ge=0,
+    )

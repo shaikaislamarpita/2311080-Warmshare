@@ -2,14 +2,18 @@
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-# Support both local development and Vercel deployment
+# Support both local development and Vercel deployment.
 try:
     from backend.dependencies import get_db, get_current_user
     from backend.models import User
     from backend.schemas import (
         AdminUserResponse,
+        AdminUserDetailResponse,
+        AdminUserPageResponse,
         AdminRoleUpdate,
         AdminBanUpdate,
+        AdminBulkBanUpdate,
+        AdminBulkBanResult,
         AdminDashboardStats,
         AuditLogResponse,
         FailedLoginAttemptResponse,
@@ -25,8 +29,11 @@ try:
     from backend.rbac import require_permission
     from backend.services.admin_service import (
         get_admin_users_service,
+        get_paginated_admin_users_service,
+        get_admin_user_detail_service,
         update_user_role_service,
         update_user_ban_service,
+        bulk_update_user_ban_service,
         revoke_user_sessions_service,
     )
     from backend.services.admin_dashboard_service import (
@@ -50,8 +57,12 @@ except ModuleNotFoundError as error:
     from models import User
     from schemas import (
         AdminUserResponse,
+        AdminUserDetailResponse,
+        AdminUserPageResponse,
         AdminRoleUpdate,
         AdminBanUpdate,
+        AdminBulkBanUpdate,
+        AdminBulkBanResult,
         AdminDashboardStats,
         AuditLogResponse,
         FailedLoginAttemptResponse,
@@ -67,8 +78,11 @@ except ModuleNotFoundError as error:
     from rbac import require_permission
     from services.admin_service import (
         get_admin_users_service,
+        get_paginated_admin_users_service,
+        get_admin_user_detail_service,
         update_user_role_service,
         update_user_ban_service,
+        bulk_update_user_ban_service,
         revoke_user_sessions_service,
     )
     from services.admin_dashboard_service import (
@@ -91,7 +105,10 @@ router = APIRouter(
 )
 
 
-# Admin dashboard statistics
+# ========================================
+# ADMIN DASHBOARD STATISTICS
+# ========================================
+
 @router.get(
     "/dashboard/stats",
     response_model=AdminDashboardStats,
@@ -105,7 +122,10 @@ def get_admin_dashboard_stats(
     return get_admin_dashboard_stats_service(db)
 
 
-# List all users
+# ========================================
+# LIST ALL USERS (EXISTING ENDPOINT)
+# ========================================
+
 @router.get(
     "/users",
     response_model=list[AdminUserResponse],
@@ -119,7 +139,77 @@ def get_admin_users(
     return get_admin_users_service(db)
 
 
-# Change a user's role
+# ========================================
+# PAGINATED USER LIST (NEW)
+# ========================================
+
+@router.get(
+    "/users/paginated",
+    response_model=AdminUserPageResponse,
+    dependencies=[
+        Depends(require_permission(PERMISSION_VIEW_ADMIN_DASHBOARD))
+    ],
+)
+def get_paginated_admin_users(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    return get_paginated_admin_users_service(
+        db=db,
+        page=page,
+        page_size=page_size,
+    )
+
+
+# ========================================
+# BULK BAN / UNBAN USERS
+# ========================================
+
+@router.patch(
+    "/users/bulk-ban",
+    response_model=AdminBulkBanResult,
+    dependencies=[
+        Depends(require_permission(PERMISSION_BAN_USERS))
+    ],
+)
+def bulk_update_user_ban(
+    ban_data: AdminBulkBanUpdate,
+    current_admin: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return bulk_update_user_ban_service(
+        data=ban_data,
+        db=db,
+        current_admin=current_admin,
+    )
+
+
+# ========================================
+# DETAILED USER VIEW (NEW)
+# ========================================
+
+@router.get(
+    "/users/{user_id}",
+    response_model=AdminUserDetailResponse,
+    dependencies=[
+        Depends(require_permission(PERMISSION_VIEW_ADMIN_DASHBOARD))
+    ],
+)
+def get_admin_user_detail(
+    user_id: int,
+    db: Session = Depends(get_db),
+):
+    return get_admin_user_detail_service(
+        target_user_id=user_id,
+        db=db,
+    )
+
+
+# ========================================
+# CHANGE USER ROLE
+# ========================================
+
 @router.patch(
     "/users/{user_id}/role",
     response_model=AdminUserResponse,
@@ -141,7 +231,10 @@ def update_user_role(
     )
 
 
-# Ban or unban a user
+# ========================================
+# BAN OR UNBAN ONE USER
+# ========================================
+
 @router.patch(
     "/users/{user_id}/ban",
     response_model=AdminUserResponse,
@@ -164,7 +257,10 @@ def update_user_ban(
     )
 
 
-# Revoke all sessions belonging to a user
+# ========================================
+# REVOKE USER SESSIONS
+# ========================================
+
 @router.delete(
     "/users/{user_id}/sessions",
     dependencies=[
@@ -183,7 +279,10 @@ def revoke_user_sessions(
     )
 
 
-# Export audit logs as CSV
+# ========================================
+# EXPORT AUDIT LOGS AS CSV
+# ========================================
+
 @router.get(
     "/export/audit-logs",
     dependencies=[
@@ -206,7 +305,10 @@ def export_admin_audit_logs(
     )
 
 
-# View audit logs
+# ========================================
+# VIEW AUDIT LOGS
+# ========================================
+
 @router.get(
     "/audit-logs",
     response_model=list[AuditLogResponse],
@@ -224,7 +326,10 @@ def get_admin_audit_logs(
     )
 
 
-# View failed login attempts and temporary blocks
+# ========================================
+# VIEW FAILED LOGIN ATTEMPTS
+# ========================================
+
 @router.get(
     "/security/failed-logins",
     response_model=list[FailedLoginAttemptResponse],

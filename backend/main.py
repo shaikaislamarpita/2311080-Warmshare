@@ -10,6 +10,7 @@ try:
     from backend.routers.auth import router as auth_router
     from backend.routers.listings import router as listings_router
     from backend.routers.admin import router as admin_router
+    from backend.routers.groups import router as groups_router
 
 except ModuleNotFoundError as error:
     if error.name != "backend":
@@ -18,6 +19,7 @@ except ModuleNotFoundError as error:
     from routers.auth import router as auth_router
     from routers.listings import router as listings_router
     from routers.admin import router as admin_router
+    from routers.groups import router as groups_router
 
 
 app = FastAPI(
@@ -34,6 +36,7 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(listings_router)
 app.include_router(admin_router)
+app.include_router(groups_router)
 
 
 # Health check
