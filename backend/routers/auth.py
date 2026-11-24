@@ -1,5 +1,5 @@
-﻿import os
-
+﻿
+import os
 from datetime import datetime, timezone
 
 from fastapi import (
@@ -11,44 +11,63 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 # Support both local development and Vercel deployment
 try:
-    from backend.dependencies import get_db, get_current_user
+    from backend.dependencies import (
+        get_db,
+        get_current_user,
+        bearer_scheme,
+    )
     from backend.models import User, UserSession, RefreshToken
     from backend.schemas import (
         UserCreate,
         UserResponse,
         UserLogin,
         UserSessionResponse,
+        UserProfileUpdate,
+        PasswordChangeRequest,
     )
+    from backend.security import decode_access_token
     from backend.services.auth_service import (
         register_user_service,
         login_user_service,
         refresh_user_session_service,
         hash_refresh_token,
         revoke_session,
+        update_user_profile_service,
+        change_user_password_service,
     )
 except ModuleNotFoundError as error:
     if error.name != "backend":
         raise
 
-    from dependencies import get_db, get_current_user
+    from dependencies import (
+        get_db,
+        get_current_user,
+        bearer_scheme,
+    )
     from models import User, UserSession, RefreshToken
     from schemas import (
         UserCreate,
         UserResponse,
         UserLogin,
         UserSessionResponse,
+        UserProfileUpdate,
+        PasswordChangeRequest,
     )
+    from security import decode_access_token
     from services.auth_service import (
         register_user_service,
         login_user_service,
         refresh_user_session_service,
         hash_refresh_token,
         revoke_session,
+        update_user_profile_service,
+        change_user_password_service,
     )
 
 
@@ -110,7 +129,10 @@ def refresh_error_response(
     return response
 
 
-# User registration
+# ========================================
+# USER REGISTRATION
+# ========================================
+
 @router.post(
     "/register",
     response_model=UserResponse,
@@ -123,7 +145,10 @@ def register_user(
     return register_user_service(user, db)
 
 
-# User login
+# ========================================
+# USER LOGIN
+# ========================================
+
 @router.post("/login")
 def login_user(
     user: UserLogin,
@@ -156,7 +181,10 @@ def login_user(
     return login_data
 
 
-# Refresh access token and rotate refresh token
+# ========================================
+# REFRESH ACCESS TOKEN
+# ========================================
+
 @router.post("/refresh")
 def refresh_token(
     response: Response,
@@ -194,7 +222,10 @@ def refresh_token(
     return refresh_data
 
 
-# Logout and revoke the session using refresh-token history
+# ========================================
+# LOGOUT
+# ========================================
+
 @router.post("/logout")
 def logout_user(
     response: Response,
@@ -236,7 +267,10 @@ def logout_user(
     }
 
 
-# Get logged-in user profile
+# ========================================
+# GET LOGGED-IN USER PROFILE
+# ========================================
+
 @router.get(
     "/me",
     response_model=UserResponse,
@@ -247,7 +281,93 @@ def get_my_profile(
     return current_user
 
 
-# List the current user's active sessions
+# ========================================
+# ISSUE #31: UPDATE USER PROFILE
+# ========================================
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+)
+def update_my_profile(
+    profile: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return update_user_profile_service(
+        user=current_user,
+        profile=profile,
+        db=db,
+    )
+
+
+# ========================================
+# ISSUE #31: CHANGE PASSWORD
+# ========================================
+
+@router.post("/change-password")
+def change_my_password(
+    password_change: PasswordChangeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials | None = Depends(
+        bearer_scheme
+    ),
+    db: Session = Depends(get_db),
+):
+    # get_current_user has already verified:
+    # - JWT validity
+    # - User identity
+    # - Account status
+    # - User role
+    # - Session ownership
+    # - Session revocation and expiration
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required.",
+        )
+
+    # Decode the same authenticated bearer token
+    # to obtain its signed session ID.
+    payload = decode_access_token(
+        credentials.credentials
+    )
+
+    if payload is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token.",
+        )
+
+    session_id = payload["sid"]
+
+    change_user_password_service(
+        user=current_user,
+        password_change=password_change,
+        db=db,
+        current_session_id=session_id,
+        ip_address=(
+            request.client.host
+            if request.client is not None
+            else None
+        ),
+        user_agent=request.headers.get("user-agent"),
+    )
+
+    return {
+        "message": (
+            "Password changed successfully. "
+            "Other sessions have been revoked."
+        )
+    }
+
+
+# ========================================
+# LIST CURRENT USER'S ACTIVE SESSIONS
+# ========================================
+
 @router.get(
     "/sessions",
     response_model=list[UserSessionResponse],
@@ -271,7 +391,10 @@ def get_my_sessions(
     return sessions
 
 
-# Revoke one of the current user's sessions
+# ========================================
+# REVOKE ONE OF THE USER'S SESSIONS
+# ========================================
+
 @router.delete("/sessions/{session_id}")
 def revoke_my_session(
     session_id: str,

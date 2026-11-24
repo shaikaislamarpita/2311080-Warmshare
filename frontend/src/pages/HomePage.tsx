@@ -565,6 +565,7 @@ export default function HomePage() {
               <UserDashboard
                 currentUser={authUser}
                 onBack={closeDashboard}
+                onUserUpdated={setAuthUser}
               />
             )}
           </>

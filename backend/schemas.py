@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 # ========================================
@@ -137,6 +137,61 @@ class UserLogin(BaseModel):
 
 
 # ========================================
+# USER PROFILE UPDATE SCHEMA
+# ISSUE #31
+# ========================================
+
+class UserProfileUpdate(BaseModel):
+    full_name: str = Field(
+        min_length=2,
+        max_length=100,
+    )
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+
+# ========================================
+# PASSWORD CHANGE SCHEMA
+# ISSUE #31
+# ========================================
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(
+        min_length=1,
+    )
+
+    new_password: str = Field(
+        min_length=8,
+        max_length=128,
+    )
+
+    confirm_password: str = Field(
+        min_length=1,
+    )
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    @model_validator(mode="after")
+    def validate_password_change(self):
+        if self.new_password != self.confirm_password:
+            raise ValueError(
+                "New password and confirmation do not match."
+            )
+
+        if self.current_password == self.new_password:
+            raise ValueError(
+                "New password must be different from current password."
+            )
+
+        return self
+
+
+# ========================================
 # USER SESSION RESPONSE SCHEMA
 # ========================================
 
@@ -224,6 +279,7 @@ class ReportReviewUpdate(BaseModel):
         max_length=1000,
     )
 
+
 # ========================================
 # ADMIN USER MANAGEMENT SCHEMAS
 # ========================================
@@ -257,6 +313,7 @@ class AdminBanUpdate(BaseModel):
         max_length=500,
     )
 
+
 class AdminDashboardStats(BaseModel):
     total_users: int
     total_donors: int
@@ -268,6 +325,7 @@ class AdminDashboardStats(BaseModel):
     pending_reports: int
     active_sessions: int
 
+
 class AuditLogResponse(BaseModel):
     id: int
     actor_id: int | None = None
@@ -277,7 +335,10 @@ class AuditLogResponse(BaseModel):
     details: dict | None = None
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
 
 class FailedLoginAttemptResponse(BaseModel):
     identifier_reference: str
