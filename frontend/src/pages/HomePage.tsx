@@ -713,7 +713,9 @@ export default function HomePage() {
               />
             ) : authUser.role === "moderator" ? (
               <ModeratorDashboard
+                currentUser={authUser}
                 onBack={closeDashboard}
+                onUserUpdated={setAuthUser}
               />
             ) : (
               <UserDashboard
@@ -859,12 +861,12 @@ export default function HomePage() {
             <DonationDetails
               selectedListing={selectedListing}
               isOwner={isOwner}
+              isLoggedIn={authUser !== null}
               deletingId={deletingId}
-              closeDetails={() =>
-                setSelectedListing(null)
-              }
+              closeDetails={() => setSelectedListing(null)}
               openEditForm={openEditForm}
               confirmDelete={confirmDelete}
+              requestLogin={() => openAuth("login")}
             />
 
             {/* DONATION LIST */}

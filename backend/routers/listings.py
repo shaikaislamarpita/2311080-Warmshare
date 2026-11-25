@@ -6,34 +6,41 @@ from sqlalchemy.orm import Session
 try:
     from backend.dependencies import get_db, get_current_user
     from backend.models import User
+
     from backend.schemas import (
         ListingCreate,
         ListingUpdate,
         ListingResponse,
+        ModeratorListingResponse,
         ListingReportCreate,
         ListingReportResponse,
         ListingModerationUpdate,
         ReportReviewUpdate,
     )
+
     from backend.services.listing_service import (
         create_listing_service,
         get_all_listings_service,
+        get_all_moderation_listings_service,
         get_single_listing_service,
         update_listing_service,
         delete_listing_service,
     )
+
     from backend.services.moderation_service import (
         create_listing_report_service,
         get_moderation_reports_service,
         moderate_listing_service,
         review_listing_report_service,
     )
+
     from backend.permissions import (
         PERMISSION_CREATE_LISTING,
         PERMISSION_UPDATE_OWN_LISTING,
         PERMISSION_DELETE_OWN_LISTING,
         PERMISSION_MODERATE_CONTENT,
     )
+
     from backend.rbac import require_permission
 
 except ModuleNotFoundError as error:
@@ -42,34 +49,41 @@ except ModuleNotFoundError as error:
 
     from dependencies import get_db, get_current_user
     from models import User
+
     from schemas import (
         ListingCreate,
         ListingUpdate,
         ListingResponse,
+        ModeratorListingResponse,
         ListingReportCreate,
         ListingReportResponse,
         ListingModerationUpdate,
         ReportReviewUpdate,
     )
+
     from services.listing_service import (
         create_listing_service,
         get_all_listings_service,
+        get_all_moderation_listings_service,
         get_single_listing_service,
         update_listing_service,
         delete_listing_service,
     )
+
     from services.moderation_service import (
         create_listing_report_service,
         get_moderation_reports_service,
         moderate_listing_service,
         review_listing_report_service,
     )
+
     from permissions import (
         PERMISSION_CREATE_LISTING,
         PERMISSION_UPDATE_OWN_LISTING,
         PERMISSION_DELETE_OWN_LISTING,
         PERMISSION_MODERATE_CONTENT,
     )
+
     from rbac import require_permission
 
 
@@ -103,7 +117,7 @@ def create_listing(
     )
 
 
-# 2. Read all donations.
+# 2. Read all visible donations.
 @router.get(
     "",
     response_model=list[ListingResponse],
@@ -114,7 +128,26 @@ def get_all_listings(
     return get_all_listings_service(db)
 
 
-# 3. Read single donation.
+# ========================================
+# MODERATOR DONATION MANAGEMENT
+# ========================================
+
+# 3. Get all donations, including hidden ones.
+# Accessible only to Moderators and Admins.
+@router.get(
+    "/moderation/listings",
+    response_model=list[ModeratorListingResponse],
+)
+def get_all_moderation_listings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(PERMISSION_MODERATE_CONTENT)
+    ),
+):
+    return get_all_moderation_listings_service(db)
+
+
+# 4. Read one visible donation.
 @router.get(
     "/{listing_id}",
     response_model=ListingResponse,
@@ -129,7 +162,7 @@ def get_single_listing(
     )
 
 
-# 4. Update donation.
+# 5. Update donation.
 @router.put(
     "/{listing_id}",
     response_model=ListingResponse,
@@ -150,7 +183,7 @@ def update_listing(
     )
 
 
-# 5. Delete donation.
+# 6. Delete donation.
 @router.delete(
     "/{listing_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -177,7 +210,7 @@ def delete_listing(
 # REPORTING AND MODERATION ENDPOINTS
 # ========================================
 
-# 6. Submit a donation report.
+# 7. Submit a donation report.
 @router.post(
     "/{listing_id}/reports",
     response_model=ListingReportResponse,
@@ -197,7 +230,7 @@ def create_listing_report(
     )
 
 
-# 7. View pending reports.
+# 8. View pending reports.
 # Accessible to Moderators and Admins.
 @router.get(
     "/moderation/reports",
@@ -212,7 +245,7 @@ def get_moderation_reports(
     return get_moderation_reports_service(db)
 
 
-# 8. Hide or restore a donation.
+# 9. Hide or restore a donation.
 # Accessible to Moderators and Admins.
 @router.patch(
     "/{listing_id}/moderation",
@@ -234,7 +267,7 @@ def moderate_listing(
     )
 
 
-# 9. Resolve or dismiss a report.
+# 10. Resolve or dismiss a report.
 # Accessible to Moderators and Admins.
 @router.patch(
     "/moderation/reports/{report_id}",

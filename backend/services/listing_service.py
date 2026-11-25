@@ -320,3 +320,24 @@ def delete_listing_service(
 
     db.delete(listing)
     db.commit()
+
+# ========================================
+# GET ALL DONATIONS FOR MODERATION
+# ========================================
+
+def get_all_moderation_listings_service(
+    db: Session,
+):
+    """
+    Return all donations, including hidden ones.
+
+    This function is only called by the protected
+    moderator/admin endpoint.
+    """
+
+    statement = (
+        select(Listing)
+        .order_by(Listing.id.desc())
+    )
+
+    return db.scalars(statement).all()

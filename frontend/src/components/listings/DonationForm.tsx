@@ -372,7 +372,7 @@ export default function DonationForm({
             }
             disabled={saving}
           >
-            <option value="like new">Like New</option>
+            <option value="like_new">Like New</option>
             <option value="good">Good</option>
             <option value="worn">Worn</option>
           </select>
