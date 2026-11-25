@@ -23,3 +23,10 @@ export type ListingForm = Omit<
   // Optional to preserve existing donation forms.
   group_id?: number | null;
 };
+
+export type ModeratorListing = Listing & {
+  moderation_status: "visible" | "hidden";
+  moderation_reason: string | null;
+  moderated_at: string | null;
+  moderated_by: number | null;
+};

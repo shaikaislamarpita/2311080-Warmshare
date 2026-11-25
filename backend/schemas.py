@@ -93,6 +93,17 @@ class ListingResponse(ListingCreate):
         from_attributes=True,
     )
 
+# ========================================
+# MODERATOR LISTING RESPONSE
+# ========================================
+
+class ModeratorListingResponse(ListingResponse):
+    moderation_status: str
+    moderation_reason: str | None = None
+    moderated_at: datetime | None = None
+    moderated_by: int | None = None
+
+
 
 # ========================================
 # USER REGISTRATION SCHEMA
@@ -537,3 +548,4 @@ class AdminUserPageResponse(BaseModel):
     total_pages: int = Field(
         ge=0,
     )
+
