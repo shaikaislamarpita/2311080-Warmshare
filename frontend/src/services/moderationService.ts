@@ -56,6 +56,24 @@ export async function getModerationReports(): Promise<ListingReport[]> {
 
   return response.json();
 }
+// ========================================
+// GET MODERATION REPORT HISTORY
+// Includes resolved and dismissed reports.
+// ========================================
+
+export async function getModerationReportHistory(): Promise<ListingReport[]> {
+  const response = await authenticatedFetch(
+    "/api/listings/moderation/reports/history"
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load report history (${response.status})`
+    );
+  }
+
+  return response.json();
+}
 
 // ========================================
 // HIDE OR RESTORE A DONATION

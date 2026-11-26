@@ -1,4 +1,3 @@
-
 import { authenticatedFetch } from "./api";
 
 import type {
@@ -9,9 +8,12 @@ import type {
   AdminBulkBanResult,
   AuditLog,
   FailedLoginAttempt,
+  AdminActiveSession,
 } from "../types/admin";
 
-async function handleResponse<T>(response: Response): Promise<T> {
+async function handleResponse<T>(
+  response: Response
+): Promise<T> {
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
 
@@ -41,11 +43,27 @@ export async function getAdminStats(): Promise<AdminDashboardStats> {
 }
 
 // ========================================
+// ACTIVE SESSION DETAILS
+// ========================================
+
+export async function getAdminActiveSessions(): Promise<
+  AdminActiveSession[]
+> {
+  const response = await authenticatedFetch(
+    "/api/admin/dashboard/active-sessions"
+  );
+
+  return handleResponse<AdminActiveSession[]>(response);
+}
+
+// ========================================
 // ALL USERS - LEGACY ENDPOINT
 // ========================================
 
 export async function getAdminUsers(): Promise<AdminUser[]> {
-  const response = await authenticatedFetch("/api/admin/users");
+  const response = await authenticatedFetch(
+    "/api/admin/users"
+  );
 
   return handleResponse<AdminUser[]>(response);
 }
@@ -160,7 +178,10 @@ export async function bulkUpdateUserBan(
 
 export async function revokeUserSessions(
   userId: number
-): Promise<{ message: string; revoked_sessions: number }> {
+): Promise<{
+  message: string;
+  revoked_sessions: number;
+}> {
   const response = await authenticatedFetch(
     `/api/admin/users/${userId}/sessions`,
     {

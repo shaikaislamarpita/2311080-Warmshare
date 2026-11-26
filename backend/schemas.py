@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import Literal
 
+
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
@@ -548,4 +549,18 @@ class AdminUserPageResponse(BaseModel):
     total_pages: int = Field(
         ge=0,
     )
+
+
+# ========================================
+# ADMIN ACTIVE SESSION RESPONSE
+# ========================================
+
+class AdminActiveSessionResponse(BaseModel):
+    session_id: str
+    user_id: int
+    full_name: str
+    email: str
+    role: str
+    created_at: datetime
+    expires_at: datetime
 

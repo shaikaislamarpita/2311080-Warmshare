@@ -1744,3 +1744,135 @@ p {
     width: 100%;
   }
 }
+/* ========================================
+   ADMIN CLICKABLE STATISTICS CARDS
+======================================== */
+
+.dashboard-stat-card.admin-stat-button {
+  appearance: none;
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 9px;
+  cursor: pointer;
+  min-height: 140px;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.admin-stat-label {
+  display: block;
+  color: #718075;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.admin-stat-value {
+  display: block;
+  color: #246b50;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.admin-stat-hint {
+  display: block;
+  color: #246b50;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.dashboard-stat-card.admin-stat-button:hover:not(:disabled) {
+  border-color: #73ad91;
+  background: #f5fbf7;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgba(30, 65, 43, 0.09);
+}
+
+.dashboard-stat-card.admin-stat-button.selected {
+  border-color: #246b50;
+  background: #edf7f0;
+  box-shadow: 0 0 0 1px #246b50;
+}
+
+.dashboard-stat-card.admin-stat-button:focus-visible {
+  outline: 3px solid #73ad91;
+  outline-offset: 3px;
+}
+
+.dashboard-stat-card.admin-stat-button:disabled {
+  cursor: wait;
+  transform: none;
+  opacity: 0.75;
+}
+
+.admin-stat-details {
+  animation: adminDetailsAppear 0.2s ease;
+}
+
+.admin-stat-details .dashboard-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.admin-stat-details .dashboard-table td {
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.admin-session-id {
+  font-family: monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  min-width: 150px;
+}
+
+@keyframes adminDetailsAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-stat-card.admin-stat-button {
+    min-height: 120px;
+    gap: 7px;
+  }
+
+  .admin-stat-label {
+    font-size: 12px;
+  }
+
+  .admin-stat-value {
+    font-size: 26px;
+  }
+
+  .admin-stat-hint {
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-stat-details {
+    animation: none;
+  }
+
+  .dashboard-stat-card.admin-stat-button {
+    transition: none;
+  }
+}

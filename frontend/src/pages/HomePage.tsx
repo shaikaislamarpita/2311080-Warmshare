@@ -701,6 +701,13 @@ export default function HomePage() {
         openAuth={openAuth}
         openCreateForm={openCreateForm}
         openDashboard={openDashboard}
+        goHome={() => {
+        closeDashboard();
+        window.scrollTo({
+        top: 0,
+        behavior: "instant",
+    });
+  }}
       />
 
       <main className="main-content">

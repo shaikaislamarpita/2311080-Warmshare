@@ -1,4 +1,3 @@
-
 export type AdminDashboardStats = {
   total_users: number;
   total_donors: number;
@@ -62,4 +61,18 @@ export type FailedLoginAttempt = {
   blocked_until: string | null;
   updated_at: string;
   is_blocked: boolean;
+};
+
+// ========================================
+// ADMIN ACTIVE SESSION DETAILS
+// ========================================
+
+export type AdminActiveSession = {
+  session_id: string;
+  user_id: number;
+  full_name: string;
+  email: string;
+  role: string;
+  created_at: string;
+  expires_at: string;
 };
