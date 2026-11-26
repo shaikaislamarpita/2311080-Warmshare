@@ -1,504 +1,931 @@
-
 <div align="center">
 
 # WarmShare
 
 ### Share Warmth. Build Community.
 
-**A Clothing Donation and Distribution Management Platform**
+**A Secure Clothing Donation and Distribution Management Platform**
 
-A community-driven platform connecting people who want to donate clothing with people and organizations who need it.
+[![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Language-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Database_Hosting-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![Vercel](https://img.shields.io/badge/Vercel-Deployed-000000?logo=vercel&logoColor=white)](https://vercel.com/)
+![Tests](https://img.shields.io/badge/Tests-92_Passed-brightgreen)
 
-[Live Website](https://2311080-warmshare.vercel.app) | [GitHub Repository](https://github.com/shaikaislamarpita/2311080-Warmshare) | [API Health Check](https://2311080-warmshare.vercel.app/api/health)
+[Live Application](https://2311080-warmshare.vercel.app/) ·
+[API Documentation](https://2311080-warmshare.vercel.app/api/docs) ·
+[API Health](https://2311080-warmshare.vercel.app/api/health) ·
+[Repository](https://github.com/shaikaislamarpita/2311080-Warmshare)
+
+**CSE309 | Autumn 2026 | Independent University, Bangladesh**
 
 </div>
 
 ---
 
-## 1. Project Overview
+## Table of Contents
 
-WarmShare is a full-stack web application designed to make clothing donation easier, more organized, transparent, and accessible.
+- [About WarmShare](#about-warmshare)
+- [Project Information](#project-information)
+- [Live Deployment](#live-deployment)
+- [Key Features](#key-features)
+- [User Roles and Permissions](#user-roles-and-permissions)
+- [Authentication and Security](#authentication-and-security)
+- [Group Collaboration](#group-collaboration)
+- [Application Dashboards](#application-dashboards)
+- [Instructor Demo Accounts](#instructor-demo-accounts)
+- [Technology Stack](#technology-stack)
+- [System Architecture](#system-architecture)
+- [Database Design](#database-design)
+- [API Reference](#api-reference)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Environment Configuration](#environment-configuration)
+- [Automated Testing](#automated-testing)
+- [Production Deployment](#production-deployment)
+- [Project Documentation](#project-documentation)
+- [Author](#author)
 
-Many people have usable clothing that they no longer need, while others struggle to access essential clothing. Traditional donation methods can be unorganized, making it difficult for donors to find recipients and for recipients to locate available donations.
+---
 
-WarmShare aims to solve this problem by providing a centralized platform where individuals can donate clothing, request available items, and coordinate the donation process.
+## About WarmShare
 
-The complete platform is designed to support individual users, NGOs, volunteers, and administrators.
+WarmShare is a full-stack web application designed to simplify clothing donation management through a secure and collaborative digital platform.
+
+The application enables individuals to publish clothing donations, discover available items, manage personal donation records, and collaborate through shared donation groups.
+
+WarmShare combines secure authentication, role-based access control, ownership-based authorization, fine-grained group permissions, content moderation, and administrative management within a single platform.
 
 ### Project Objectives
 
-- Make clothing donation simple and accessible.
-- Connect donors and recipients through one platform.
-- Reduce clothing waste by encouraging reuse.
-- Help NGOs coordinate clothing distribution.
-- Provide transparent donation tracking.
-- Protect users' personal information.
-- Support secure donation claiming and collection.
-- Build a reliable community-based donation network.
+- Make clothing donation management accessible and organized.
+- Provide secure authentication and account management.
+- Protect user resources through backend authorization.
+- Enable controlled collaboration through shared groups.
+- Maintain appropriate donation content through moderation.
+- Provide administrative tools for user and security management.
+- Deliver a responsive, publicly accessible web application.
 
 ---
 
-## 2. The Problem
+## Project Information
 
-Clothing donation currently faces several challenges:
-
-1. Donors may not know where to donate usable clothing.
-2. People in need may struggle to find available clothing.
-3. Donation information is scattered across different platforms.
-4. NGOs may face difficulties managing donation campaigns.
-5. Donation requests and availability may not be tracked properly.
-6. Personal information can be exposed during pickup coordination.
-7. There may be limited transparency regarding donation status.
-
-WarmShare is designed to address these challenges through a structured donation management system.
-
----
-
-## 3. Proposed Solution
-
-WarmShare provides a centralized platform where users can:
-
-- Create clothing donation listings.
-- Browse available clothing.
-- Search and filter donations.
-- Request or claim clothing.
-- Track donation status.
-- Coordinate collection.
-- Participate in NGO donation campaigns.
-- Volunteer for distribution activities.
-- Manage their personal information.
-
-The platform is designed around privacy, security, and accessibility.
+| Field | Details |
+| :--- | :--- |
+| Project Name | WarmShare |
+| Course | CSE309 |
+| Semester | Autumn 2026 |
+| Student ID | 2311080 |
+| University | Independent University, Bangladesh |
+| Project Type | Full-Stack Web Application |
+| Architecture | React + FastAPI + PostgreSQL |
+| Hosting Platform | Vercel |
 
 ---
 
-## 4. User Account System
+## Live Deployment
 
-WarmShare uses a unified account system.
+The application is publicly deployed on Vercel with a persistent PostgreSQL database hosted on Supabase.
 
-A person does not need separate accounts to donate clothing and receive donations.
+| Resource | Access Link |
+| :--- | :--- |
+| Live Application | [Open WarmShare](https://2311080-warmshare.vercel.app/) |
+| API Health Check | [Check API Status](https://2311080-warmshare.vercel.app/api/health) |
+| Swagger Documentation | [Explore REST API](https://2311080-warmshare.vercel.app/api/docs) |
+| ReDoc Documentation | [View API Reference](https://2311080-warmshare.vercel.app/api/redoc) |
+| OpenAPI Specification | [View OpenAPI JSON](https://2311080-warmshare.vercel.app/api/openapi.json) |
+| Source Code | [GitHub Repository](https://github.com/shaikaislamarpita/2311080-Warmshare) |
 
-A single general user account supports both activities.
-
-### User Types and Responsibilities
-
-| Account Type | Responsibilities |
-|---|---|
-| General User | Donate clothing, claim items, manage listings, track donations |
-| Verified NGO | Manage organizational donation campaigns and distribution |
-| Approved Volunteer | Assist with assigned collection and distribution tasks |
-| Administrator | Verify accounts, manage reports, moderate platform activity |
-
-NGO and volunteer permissions are additional verified responsibilities.
-
-A general user may apply to become an approved volunteer or represent a verified NGO without creating a second personal account.
+> This application is intended for academic demonstration. Use fictional donation information and avoid publishing real residential addresses or sensitive personal information.
 
 ---
 
-## 5. Main Features
+## Key Features
 
-### 5.1 User Registration and Authentication
+### Authentication and Account Management
 
-- User registration
-- Secure login and logout
-- Password hashing
-- Authentication tokens
-- Account profile management
-- Duplicate email prevention
-- Role-based authorization
-- Account recovery
-- Account deletion requests
+- User registration and login.
+- Secure logout and session invalidation.
+- Argon2 password hashing with server-side pepper.
+- JWT-based authentication.
+- Automatic access token refresh.
+- Refresh token rotation.
+- Profile information updates.
+- Secure password changes.
+- Personal session management.
+- Login rate limiting and account lockout protection.
 
-### 5.2 Clothing Donation Management
+### Donation Management
 
-- Create donation listings
-- View available donations
-- View individual donation details
-- Update personal donation listings
-- Delete or withdraw personal listings
-- Search and filter clothing
-- Select clothing categories
-- Specify clothing size
-- Specify age group
-- Specify clothing condition
-- Specify quantity
-- Track listing availability
+- Browse publicly available clothing donations.
+- View individual donation details.
+- Create, edit, and delete owned donation listings.
+- Organize donations using clothing information and categories.
+- Manage personal and group donation listings.
+- Report inappropriate donation content.
 
-### 5.3 Donation Claiming System
+### Group Collaboration
 
-- Browse available clothing
-- Request clothing donations
-- Specify requested quantity
-- Prevent claims exceeding available quantity
-- Track claim status
-- Cancel claims
-- Release reserved quantities
-- View claim history
+- Create shared donation groups.
+- Manage group names and membership.
+- Assign individual member permissions.
+- Create and manage group donations.
+- Enforce group ownership and membership authorization.
 
-### 5.4 Donation Collection and Tracking
+### Content Moderation
 
-The planned donation lifecycle includes:
+- Review pending donation reports.
+- Resolve or dismiss reports.
+- Record resolution notes.
+- Hide and restore donation listings.
+- View reviewed report history.
+- Filter report history by status.
 
-**Available → Claimed → Collected**
+### Administrative Management
 
-Additional workflows support:
-
-- Claim cancellation
-- Donation withdrawal
-- Quantity reservation
-- Collection confirmation
-- Donation history
-- Authorized pickup coordination
-
-### 5.5 NGO Management
-
-- NGO registration
-- Organization verification
-- NGO profiles
-- Donation campaigns
-- Campaign requirements
-- Donation pledges
-- Campaign progress tracking
-- Distribution records
-
-### 5.6 Volunteer Management
-
-- Volunteer applications
-- Volunteer verification
-- Collection assignments
-- Distribution assignments
-- Task status updates
-- Volunteer activity history
-
-### 5.7 Administrative Management
-
-- User management
-- NGO verification
-- Volunteer approval
-- Donation moderation
-- Report management
-- Suspicious activity review
-- Platform activity monitoring
-
-### 5.8 Dashboard and User Experience
-
-- Responsive interface
-- Donation dashboard
-- Personal donation history
-- Claim history
-- Search and filtering
-- Donation statistics
-- Clear validation messages
-- User-friendly navigation
+- Interactive application statistics.
+- Paginated user management.
+- Individual user detail views.
+- User role management.
+- Account banning and unbanning.
+- Bulk account management.
+- Administrative session revocation.
+- Failed login monitoring.
+- Administrative audit logs.
+- Audit log CSV export.
 
 ---
 
-## 6. Privacy and Data Protection
+## User Roles and Permissions
 
-Protecting user information is a major design requirement of WarmShare.
+WarmShare implements three application-level roles.
 
-The platform is being designed to follow privacy-by-design principles.
+| Role | Responsibilities |
+| :--- | :--- |
+| **User** | Personal donations, group collaboration, profile and session management |
+| **Moderator** | Standard user capabilities and additional content moderation permissions |
+| **Admin** | Administrative management, user authorization, security monitoring and application statistics |
 
-### 6.1 Personal Information Protection
+### Permission Matrix
 
-The platform should collect only information necessary for donation coordination.
+| Permission | User | Moderator | Admin |
+| :--- | :---: | :---: | :---: |
+| Browse public donations | ✓ | ✓ | ✓ |
+| Create personal donations | ✓ | ✓ | ✓ |
+| Edit owned donations | ✓ | ✓ | ✓ |
+| Delete owned donations | ✓ | ✓ | ✓ |
+| Manage personal profile | ✓ | ✓ | ✓ |
+| Change own password | ✓ | ✓ | ✓ |
+| Manage personal sessions | ✓ | ✓ | ✓ |
+| Create and join groups | ✓ | ✓ | ✓ |
+| Report donation listings | ✓ | ✓ | ✓ |
+| Review donation reports | — | ✓ | ✓ |
+| Hide and restore listings | — | ✓ | ✓ |
+| Access moderation history API | — | ✓ | ✓ |
+| Access admin dashboard | — | — | ✓ |
+| Manage user roles | — | — | ✓ |
+| Ban and unban users | — | — | ✓ |
+| Bulk ban and unban | — | — | ✓ |
+| Revoke other users' sessions | — | — | ✓ |
+| Access administrative audit logs | — | — | ✓ |
+| Export audit logs | — | — | ✓ |
 
-Personal information such as email addresses, phone numbers, and private addresses must not be publicly accessible.
+> Application-level roles and group-level permissions are evaluated independently.
 
-### 6.2 Pickup Address Privacy
+### Backend Authorization
 
-Public donation listings should display an approximate pickup area rather than an exact private address.
+Authorization is enforced through reusable backend dependencies and resource-level permission checks.
 
-Exact pickup information should only be accessible to authorized participants when required for collection.
+| Module | Responsibility |
+| :--- | :--- |
+| `permissions.py` | Role definitions and permission mappings |
+| `rbac.py` | Reusable permission-checking dependencies |
+| `dependencies.py` | User authentication, account and session validation |
+| `security.py` | Password security and JWT operations |
+| `group_service.py` | Group ownership and member permission checks |
+| `listing_service.py` | Donation ownership and resource authorization |
 
-### 6.3 Authentication Security
-
-The authentication system is designed to use:
-
-- Secure password hashing
-- Authentication token validation
-- Protected API endpoints
-- Secure account sessions
-- Server-side permission verification
-
-### 6.4 Role-Based Access Control
-
-Users should only access functionality permitted by their responsibilities.
-
-For example:
-
-- General users manage their own listings.
-- Verified NGOs manage authorized campaigns.
-- Volunteers access assigned tasks.
-- Administrators access authorized management functions.
-
-### 6.5 Listing Ownership
-
-Users should not be able to modify or delete donation listings belonging to another user.
-
-Listing ownership must be verified by the backend.
-
-### 6.6 Data Security
-
-The platform's security requirements include:
-
-- HTTPS communication
-- Secure environment variables
-- Restricted database access
-- Backend input validation
-- Protection against unauthorized requests
-- Appropriate rate limiting
-- Safe error handling
-- Audit logging for sensitive actions
-
-### 6.7 User Privacy Rights
-
-The complete system is intended to support:
-
-- Profile information updates
-- Privacy preferences
-- Personal data access requests
-- Account deletion requests
-- Appropriate data retention policies
-
-### Current Security Status
-
-The current deployed version is a development MVP.
-
-It supports donation listing CRUD operations, but authentication, authorization, and public/private address separation are still being implemented.
-
-**The current public demo should only be used with fictional test data. Do not submit real home addresses, private contact information, or other sensitive personal information.**
-
-The application must undergo security testing before being used for real-world donation coordination.
+Frontend role-based rendering improves usability, while the backend remains responsible for enforcing access restrictions.
 
 ---
 
-## 7. Technology Stack
+## Authentication and Security
 
-| Component | Technology |
-|---|---|
-| Frontend | React |
-| Programming Language | TypeScript |
-| Frontend Build Tool | Vite |
-| Backend | FastAPI |
-| Backend Language | Python |
-| Database | PostgreSQL |
-| Database Platform | Supabase |
-| ORM | SQLAlchemy |
-| Data Validation | Pydantic |
-| Deployment | Vercel |
-| Version Control | Git |
-| Repository Management | GitHub |
+WarmShare implements multiple security layers to protect user accounts, authenticated sessions, and application resources.
 
----
+### Security Overview
 
-## 8. System Architecture
+| Security Mechanism | Implementation |
+| :--- | :--- |
+| Password Hashing | Argon2 |
+| Password Salt | Automatically generated by Argon2 |
+| Password Pepper | Server-side HMAC-SHA256 |
+| Access Token | Signed JWT |
+| JWT Algorithm | HS256 |
+| Access Token Lifetime | 15 minutes |
+| Refresh Token Storage | Hashed server-side records |
+| Refresh Token Delivery | HttpOnly cookie |
+| Refresh Token Management | Rotation and revocation |
+| Authorization | Backend RBAC |
+| Resource Protection | Ownership and group permission checks |
+| Login Protection | Rate limiting and temporary account lockout |
+| Input Validation | Pydantic schemas |
+| Secret Management | Environment variables |
 
-WarmShare follows a frontend-backend architecture.
+### Password Security
 
-```text
-                  USER
-                    |
-                    v
-          React + TypeScript
-              Frontend
-                    |
-                    | HTTP Requests
-                    v
-              FastAPI
-               Backend
-                    |
-                    v
-              SQLAlchemy
-                    |
-                    v
-          Supabase PostgreSQL
-               Database
+Passwords are processed using a server-side pepper before being hashed with Argon2.
+
+The password pepper is stored separately from the database using an environment variable. Argon2 automatically generates a salt during password hashing.
+
+```mermaid
+flowchart LR
+    A[User Password] --> B[HMAC-SHA256]
+    P[Server Pepper] --> B
+    B --> C[Argon2]
+    S[Random Salt] --> C
+    C --> D[Stored Password Hash]
 ```
 
-### How It Works
+### JWT Authentication
 
-1. The user interacts with the React frontend.
-2. React sends an HTTP request to the FastAPI backend.
-3. FastAPI validates the request.
-4. SQLAlchemy communicates with PostgreSQL.
-5. PostgreSQL stores or retrieves the requested data.
-6. FastAPI returns a response.
-7. React updates the interface.
+After successful login, the backend generates a signed JWT access token containing:
 
----
+| Claim | Purpose |
+| :--- | :--- |
+| `sub` | Authenticated user ID |
+| `role` | User role |
+| `sid` | Associated session identifier |
+| `iat` | Token creation timestamp |
+| `exp` | Token expiration timestamp |
+| `jti` | Unique token identifier |
 
-## 9. Current Database Model
+Protected API requests include the access token in the Authorization header.
 
-The implemented MVP uses a donation listing model.
-
-### Listings Table
-
-| Field | Description |
-|---|---|
-| id | Unique listing identifier |
-| title | Donation title |
-| category | Clothing category |
-| size | Clothing size |
-| age_group | Intended age group |
-| gender | Gender category |
-| condition | Clothing condition |
-| quantity | Number of items |
-| pickup_address | Pickup address |
-| created_at | Listing creation timestamp |
-
-### Planned Database Extensions
-
-The complete system is designed to include:
-
-- Users
-- User permissions
-- Donation listings
-- Donation claims
-- Pickup assignments
-- NGO profiles
-- Donation campaigns
-- Volunteer assignments
-- Reports
-- Audit logs
-
-These additional entities will be introduced during further development.
-
----
-
-## 10. REST API Documentation
-
-The current backend provides the following API endpoints.
-
-**Base URL:**
-
-```text
-https://2311080-warmshare.vercel.app/api
+```http
+Authorization: Bearer <access_token>
 ```
 
-### API Endpoints
+The backend validates the token signature, expiration, account status, current user role, and associated session.
 
-| Method | Endpoint | Description | Success Status |
-|---|---|---|---|
-| GET | /health | Check backend status | 200 |
-| GET | /hello | Test API response | 200 |
-| POST | /listings | Create a listing | 201 |
-| GET | /listings | Retrieve all listings | 200 |
-| GET | /listings/{id} | Retrieve one listing | 200 |
-| PUT | /listings/{id} | Update a listing | 200 |
-| DELETE | /listings/{id} | Delete a listing | 204 |
+### Authentication Flow
 
-### CRUD Operations
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant F as React Frontend
+    participant B as FastAPI Backend
+    participant D as PostgreSQL
 
-**Create**
-
-Adds a new clothing donation listing.
-
-**Read Single**
-
-Retrieves one donation listing using its ID.
-
-**Read List**
-
-Retrieves all available listing records.
-
-**Update**
-
-Updates an existing donation listing.
-
-**Delete**
-
-Removes a donation listing.
-
-### Example JSON Request
-
-```json
-{
-  "title": "Winter Sweater",
-  "category": "Sweater",
-  "size": "M",
-  "age_group": "Adult",
-  "gender": "Unisex",
-  "condition": "Good",
-  "quantity": 2,
-  "pickup_address": "Demo Location"
-}
+    U->>F: Enter login credentials
+    F->>B: POST /api/auth/login
+    B->>D: Retrieve user account
+    D-->>B: User information
+    B->>B: Verify password and account status
+    B->>D: Create session and refresh token record
+    B-->>F: Access JWT and HttpOnly refresh cookie
+    F->>B: GET /api/auth/me
+    B-->>F: Authenticated user information
+    F-->>U: Display authenticated interface
 ```
 
-The example uses fictional pickup information.
+### Automatic Token Refresh
+
+Access tokens expire after 15 minutes. The frontend can automatically request a replacement access token using the refresh cookie.
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend
+    participant D as Database
+
+    F->>B: Protected request
+    B-->>F: 401 Unauthorized
+    F->>B: POST /api/auth/refresh
+    B->>D: Validate refresh token and session
+    B->>D: Rotate refresh token
+    B-->>F: New access token and refresh cookie
+    F->>B: Retry original request
+    B-->>F: Protected response
+```
+
+The frontend coordinates concurrent refresh requests to avoid unnecessary simultaneous token refresh operations.
+
+### Session Management
+
+Authenticated logins are associated with server-side sessions.
+
+Users can view and revoke their personal sessions. The administrator can revoke sessions belonging to other users through authorized administrative operations.
+
+Logout invalidates the associated server-side session. Revoked and expired sessions are rejected during subsequent protected requests.
+
+### Additional Security Controls
+
+- Current password verification before password changes.
+- Validation of new passwords.
+- Account-based failed login tracking.
+- Temporary account lockout.
+- Protection against unauthorized role modification.
+- Prevention of administrative self-role modification.
+- Protection of administrator accounts from banning.
+- Rejection of banned users on protected requests.
+- Server-side ownership and membership validation.
 
 ---
 
-## 11. Project Folder Structure
+## Group Collaboration
+
+Groups allow multiple users to collaborate on clothing donation activities while maintaining controlled access to shared resources.
+
+### Group Owner
+
+The group owner can:
+
+- Rename and delete the group.
+- Add and remove members.
+- Configure member permissions.
+- Create, edit, and assign group donations.
+- Manage group donation activities.
+
+### Group Member Permissions
+
+| Permission | Description |
+| :--- | :--- |
+| Create | Allows the member to create group donations |
+| Edit | Allows the member to modify group donations |
+| Assign | Allows the member to assign group donations |
+
+Group member permissions are stored in the database and validated by the backend.
+
+### Group Authorization Flow
+
+```mermaid
+flowchart TD
+    A[Group Operation Request] --> B[Authenticate User]
+    B --> C{Is Group Owner?}
+    C -->|Yes| D[Allow Authorized Operation]
+    C -->|No| E{Owner-Only Operation?}
+    E -->|Yes| H[403 Forbidden]
+    E -->|No| F{Is Group Member?}
+    F -->|No| H
+    F -->|Yes| G{Required Permission Granted?}
+    G -->|Yes| D
+    G -->|No| H
+```
+
+Group renaming, deletion, and membership management are reserved for the group owner.
+
+---
+
+## Application Dashboards
+
+### User Dashboard
+
+The User Dashboard provides personal donation, group, profile, and session management functionality.
+
+| Section | Functionality |
+| :--- | :--- |
+| My Donations | View, create, edit and delete owned donations |
+| Groups | Create groups and participate in shared donation activities |
+| Group Members | Manage membership and permissions for owned groups |
+| Profile | View and update account information |
+| Password | Change account password |
+| Sessions | View and revoke personal login sessions |
+
+### Moderator Dashboard
+
+The Moderator Dashboard provides tools for maintaining appropriate donation content.
+
+| Section | Functionality |
+| :--- | :--- |
+| Pending Reports | Review submitted donation reports |
+| Report Review | Resolve or dismiss reports with resolution notes |
+| Listing Moderation | Hide and restore donation listings |
+| Report History | View previously resolved and dismissed reports |
+| History Filters | Filter reviewed reports by status |
+
+Reviewed reports include relevant report information, resolution notes, reviewer information, and review timestamps.
+
+### Admin Dashboard
+
+The Admin Dashboard provides centralized application management and security monitoring.
+
+#### Overview Statistics
+
+The dashboard contains nine interactive statistics cards.
+
+| Statistic | Description |
+| :--- | :--- |
+| Total Users | Total registered accounts |
+| Donors | Accounts assigned the normal user role |
+| Moderators | Accounts assigned the moderator role |
+| Banned Users | Accounts currently marked as banned |
+| Total Listings | Total donation listings |
+| Visible Listings | Listings available for public viewing |
+| Hidden Listings | Listings hidden through moderation |
+| Pending Reports | Reports awaiting moderation |
+| Active Sessions | Sessions that are not expired or revoked |
+
+Each statistics card displays corresponding detailed records when selected.
+
+#### User Management
+
+- Paginated user listing.
+- Search and filtering within the displayed user page.
+- Individual user detail views.
+- User role modification.
+- Account ban and unban operations.
+- Bulk ban and unban operations.
+- Administrative session revocation.
+
+#### User Detail View
+
+The administrator can inspect account information, assigned roles, account status, donation listings, group ownership, group memberships, login sessions, and recent recorded activity.
+
+#### Security Monitoring
+
+The security monitoring section displays protected account identifier references, failed login counts, account lockout status, lockout expiration information, and update timestamps.
+
+#### Administrative Audit Logs
+
+Recorded activities include:
+
+| Activity Category | Recorded Events |
+| :--- | :--- |
+| Role Management | User role changes |
+| Account Management | Ban and unban operations |
+| Session Management | Session revocation |
+| Profile Management | Profile updates |
+| Password Security | Password changes and failed password change attempts |
+| Content Moderation | Listing moderation and report reviews |
+
+Audit records include actor information, action, target, relevant details, and timestamps.
+
+#### CSV Export
+
+The administrator can download administrative audit logs as a CSV file through a permission-protected export endpoint.
+
+---
+
+## Instructor Demo Accounts
+
+The following accounts are provided for evaluating the deployed application's authentication, authorization, administration, moderation, and collaboration features.
+
+| User ID | Name | Login Email | Role |
+| :---: | :--- | :--- | :--- |
+| 15 | shaika | `aa@gmail.com` | **Admin** |
+| 22 | rita islam | `12@iub.edu.bd` | **Moderator** |
+| 23 | test | `test@gmail.com` | **User** |
+| 21 | rupa | `123@iub.edu.bd` | **User** |
+| 8 | arpita | `arpita@gmail.com` | **User** |
+
+> Demo account passwords are provided separately through the final submission form and PDF report. Passwords are not published in this repository.
+
+### Recommended Demonstration Scenarios
+
+| Account | Demonstration |
+| :--- | :--- |
+| Admin | Statistics, user management, role changes, account restrictions, sessions, audit logs and CSV export |
+| Moderator | Donation reports, listing moderation and report history |
+| Normal User | Authentication, personal donations, profile, sessions and ownership-based authorization |
+| Group Owner | Group management and member permission configuration |
+| Group Member | Allowed and restricted group donation operations |
+
+### Shared Group Demo
+
+| Information | Details |
+| :--- | :--- |
+| Group Name | `test` |
+| Group Owner | test |
+| Owner Email | `test@gmail.com` |
+| Owner User ID | 23 |
+
+#### Group Membership and Permissions
+
+| User ID | Group Role | Create | Edit | Assign |
+| :---: | :--- | :---: | :---: | :---: |
+| 23 | Owner | ✓ | ✓ | ✓ |
+| 12 | Member | ✓ | — | ✓ |
+| 22 | Member | ✓ | — | ✓ |
+| 2 | Member | ✓ | — | ✓ |
+
+#### Group Permission Testing
+
+1. Log in using User ID 23 to demonstrate group owner privileges.
+2. Log in using User ID 22 to demonstrate restricted member privileges.
+3. Create a group donation using the member account.
+4. Demonstrate an allowed assignment operation.
+5. Attempt to edit a group donation without the edit permission.
+6. Demonstrate that group settings and membership management are owner-controlled.
+
+These scenarios demonstrate backend-enforced group permissions independently of application-level roles.
+
+---
+
+## Technology Stack
+
+### Frontend
+
+| Technology | Purpose |
+| :--- | :--- |
+| React | Component-based user interface |
+| TypeScript | Type-safe frontend development |
+| Vite | Development server and production build |
+| CSS | Application styling and responsive layouts |
+
+### Backend
+
+| Technology | Purpose |
+| :--- | :--- |
+| Python | Backend programming language |
+| FastAPI | REST API development |
+| SQLAlchemy | Object-relational mapping |
+| Pydantic | Request and response validation |
+| JWT | Access token authentication |
+| Argon2 | Secure password hashing |
+
+### Database, Testing and Deployment
+
+| Technology | Purpose |
+| :--- | :--- |
+| PostgreSQL | Relational database |
+| Supabase | Hosted PostgreSQL database |
+| Pytest | Automated backend testing |
+| Vercel | Frontend and backend deployment |
+| Git | Version control |
+| GitHub | Repository and development history |
+| Swagger / OpenAPI | Interactive API documentation |
+
+---
+
+## System Architecture
+
+WarmShare follows a layered architecture that separates presentation, API communication, authentication, authorization, business logic, and database operations.
+
+```mermaid
+flowchart TD
+    U[User Browser]
+
+    subgraph Frontend
+        UI[React Components]
+        TS[TypeScript Application Logic]
+        API[Frontend API Services]
+        UI --> TS --> API
+    end
+
+    subgraph Backend
+        R[FastAPI Routers]
+        A[Authentication Dependencies]
+        P[RBAC and Resource Authorization]
+        S[Business Logic Services]
+        O[SQLAlchemy ORM]
+        R --> A --> P --> S --> O
+    end
+
+    subgraph Database
+        DB[(Supabase PostgreSQL)]
+    end
+
+    U --> UI
+    API <-->|HTTP and JSON| R
+    O <--> DB
+```
+
+### Architecture Responsibilities
+
+| Layer | Responsibility |
+| :--- | :--- |
+| Presentation | React components, dashboards, forms and application state |
+| API Communication | HTTP requests, token handling and response processing |
+| API Routing | REST endpoint definitions and request handling |
+| Authentication | JWT, user account and session validation |
+| Authorization | Role, ownership and group permission checks |
+| Business Logic | Authentication, donation, group, moderation and administrative operations |
+| Data Access | SQLAlchemy database queries and transactions |
+| Persistence | PostgreSQL data storage |
+
+Public endpoints, such as public donation browsing, do not require authentication. Protected endpoints apply the relevant authentication and authorization checks.
+
+---
+
+## Database Design
+
+WarmShare uses a relational PostgreSQL database for persistent application storage.
+
+### Database Entities
+
+| Entity | Responsibility |
+| :--- | :--- |
+| User | Account information, password hashes, roles and account status |
+| Listing | Clothing donation information and moderation status |
+| Group | Shared donation groups and ownership |
+| GroupMember | Group membership and individual permissions |
+| UserSession | Authenticated login sessions |
+| RefreshToken | Hashed refresh token records |
+| ListingReport | Donation reports and review information |
+| AuditLog | Recorded administrative and security activities |
+| LoginRateLimit | Failed login tracking and account lockout information |
+
+### Conceptual Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    USER ||--o{ LISTING : owns
+    USER ||--o{ GROUP : owns
+    USER ||--o{ GROUP_MEMBER : participates
+    GROUP ||--o{ GROUP_MEMBER : contains
+    GROUP o|--o{ LISTING : organizes
+    USER ||--o{ USER_SESSION : establishes
+    USER_SESSION ||--o{ REFRESH_TOKEN : uses
+    USER ||--o{ LISTING_REPORT : submits
+    LISTING ||--o{ LISTING_REPORT : receives
+    USER o|--o{ AUDIT_LOG : performs
+```
+
+The database structure supports account management, donation ownership, collaborative groups, session validation, refresh token rotation, moderation, and administrative activity tracking.
+
+---
+
+## API Reference
+
+WarmShare exposes REST API endpoints through FastAPI.
+
+The complete API specification, request schemas, response schemas, and endpoint authentication requirements are available through the deployed API documentation.
+
+- [Swagger UI](https://2311080-warmshare.vercel.app/api/docs)
+- [ReDoc](https://2311080-warmshare.vercel.app/api/redoc)
+- [OpenAPI JSON](https://2311080-warmshare.vercel.app/api/openapi.json)
+
+<details>
+<summary><strong>Authentication and Account Endpoints</strong></summary>
+
+<br>
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| POST | `/api/auth/register` | Register a user |
+| POST | `/api/auth/login` | Authenticate a user |
+| POST | `/api/auth/refresh` | Refresh access token |
+| POST | `/api/auth/logout` | Invalidate authenticated session |
+| GET | `/api/auth/me` | Retrieve current user |
+| PATCH | `/api/auth/me` | Update profile information |
+| POST | `/api/auth/change-password` | Change account password |
+| GET | `/api/auth/sessions` | Retrieve personal sessions |
+| DELETE | `/api/auth/sessions/{session_id}` | Revoke personal session |
+
+</details>
+
+<details>
+<summary><strong>Donation Endpoints</strong></summary>
+
+<br>
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/api/listings` | Retrieve public donations |
+| POST | `/api/listings` | Create donation |
+| GET | `/api/listings/{listing_id}` | Retrieve donation details |
+| PUT | `/api/listings/{listing_id}` | Update authorized donation |
+| DELETE | `/api/listings/{listing_id}` | Delete authorized donation |
+| POST | `/api/listings/{listing_id}/reports` | Submit donation report |
+
+</details>
+
+<details>
+<summary><strong>Group API</strong></summary>
+
+<br>
+
+**Base path:** `/api/groups`
+
+The group API supports:
+
+- Group creation and retrieval.
+- Group renaming and deletion.
+- Group membership management.
+- Member permission configuration.
+- Group donation retrieval.
+
+Complete group endpoint definitions are available in Swagger UI.
+
+</details>
+
+<details>
+<summary><strong>Moderation Endpoints</strong></summary>
+
+<br>
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/api/listings/moderation/listings` | Retrieve moderation listings |
+| GET | `/api/listings/moderation/reports` | Retrieve pending reports |
+| GET | `/api/listings/moderation/reports/history` | Retrieve reviewed reports |
+| PATCH | `/api/listings/{listing_id}/moderation` | Hide or restore listing |
+| PATCH | `/api/listings/moderation/reports/{report_id}` | Resolve or dismiss report |
+
+</details>
+
+<details>
+<summary><strong>Administrative Endpoints</strong></summary>
+
+<br>
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/api/admin/dashboard/stats` | Retrieve dashboard statistics |
+| GET | `/api/admin/dashboard/active-sessions` | Retrieve active sessions |
+| GET | `/api/admin/users` | Retrieve registered users |
+| GET | `/api/admin/users/paginated` | Retrieve paginated users |
+| GET | `/api/admin/users/{user_id}` | Retrieve user details |
+| PATCH | `/api/admin/users/{user_id}/role` | Update user role |
+| PATCH | `/api/admin/users/{user_id}/ban` | Ban or unban user |
+| PATCH | `/api/admin/users/bulk-ban` | Bulk ban or unban |
+| DELETE | `/api/admin/users/{user_id}/sessions` | Revoke user sessions |
+| GET | `/api/admin/audit-logs` | Retrieve audit logs |
+| GET | `/api/admin/security/failed-logins` | Retrieve failed login information |
+| GET | `/api/admin/export/audit-logs` | Export audit logs as CSV |
+
+</details>
+
+### Authorization Responses
+
+| HTTP Status | Meaning |
+| :---: | :--- |
+| 401 | Missing, invalid or expired authentication |
+| 403 | Insufficient permission or restricted account |
+| 404 | Requested resource not found |
+| 422 | Request validation failed |
+| 429 | Request rate limit exceeded |
+
+---
+
+## Project Structure
 
 ```text
 2311080-Warmshare/
-|
-|-- backend/
-|   |-- main.py
-|   |-- database.py
-|   |-- models.py
-|   |-- schemas.py
-|   |-- requirements.txt
-|
-|-- frontend/
-|   |-- src/
-|   |   |-- App.tsx
-|   |   |-- index.css
-|   |
-|   |-- index.html
-|   |-- vite.config.ts
-|
-|-- vercel.json
-|-- README.md
+│
+├── backend/
+│   ├── migrations/
+│   │
+│   ├── routers/
+│   │   ├── admin.py
+│   │   ├── auth.py
+│   │   ├── groups.py
+│   │   └── listings.py
+│   │
+│   ├── services/
+│   │   ├── admin_dashboard_service.py
+│   │   ├── admin_service.py
+│   │   ├── audit_service.py
+│   │   ├── auth_service.py
+│   │   ├── export_service.py
+│   │   ├── group_service.py
+│   │   ├── listing_service.py
+│   │   ├── moderation_service.py
+│   │   └── security_monitoring_service.py
+│   │
+│   ├── tests/
+│   │   ├── conftest.py
+│   │   ├── test_admin_rbac.py
+│   │   ├── test_admin_user_details.py
+│   │   ├── test_auth.py
+│   │   ├── test_auth_security.py
+│   │   ├── test_group_permissions.py
+│   │   ├── test_listing_rbac.py
+│   │   └── test_moderation.py
+│   │
+│   ├── create_tables.py
+│   ├── database.py
+│   ├── dependencies.py
+│   ├── main.py
+│   ├── models.py
+│   ├── permissions.py
+│   ├── provision_admin.py
+│   ├── rbac.py
+│   ├── schemas.py
+│   ├── security.py
+│   ├── requirements.txt
+│   └── requirements-dev.txt
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── constants/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   └── types/
+│   │
+│   ├── index.html
+│   ├── package.json
+│   └── package-lock.json
+│
+├── docs/
+│   ├── 01-prd.md
+│   ├── 02-srs.md
+│   └── 03-tdd.md
+│
+├── .env.example
+├── .gitignore
+├── LICENSE
+├── README.md
+└── vercel.json
 ```
+
+### Backend Organization
+
+| Directory / File | Purpose |
+| :--- | :--- |
+| `routers/` | REST API endpoint definitions |
+| `services/` | Application business logic |
+| `migrations/` | Database schema migration scripts |
+| `tests/` | Automated backend tests |
+| `models.py` | SQLAlchemy database models |
+| `schemas.py` | Pydantic validation schemas |
+| `security.py` | Password and token security |
+| `dependencies.py` | Authentication dependencies |
+| `permissions.py` | Role and permission definitions |
+| `rbac.py` | Permission enforcement |
+| `database.py` | Database configuration |
+| `main.py` | FastAPI application entry point |
 
 ---
 
-## 12. Installation and Local Setup
+## Getting Started
 
 ### Prerequisites
 
-Install:
+Ensure the following tools are installed:
 
-- Python 3.10 or newer
-- Node.js 22 or newer
-- Git
-- VS Code
+- Python 3.11 or a compatible version.
+- Node.js compatible with the project's Vite version.
+- npm.
+- Git.
+- PostgreSQL or a Supabase database connection.
 
-A PostgreSQL database connection is required.
-
-### Step 1: Clone the Repository
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/shaikaislamarpita/2311080-Warmshare.git
-```
-
-```bash
 cd 2311080-Warmshare
 ```
 
-### Step 2: Install Backend Dependencies
-
-From the project root:
+### 2. Create a Python Virtual Environment
 
 ```bash
-pip install -r backend/requirements.txt
+python -m venv .venv
 ```
 
-### Step 3: Configure the Database
+**Windows PowerShell**
 
-Create a local environment file:
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+**Linux / macOS**
+
+```bash
+source .venv/bin/activate
+```
+
+### 3. Install Backend Dependencies
+
+```bash
+python -m pip install -r backend/requirements.txt
+```
+
+For development and automated testing:
+
+```bash
+python -m pip install -r backend/requirements-dev.txt
+```
+
+### 4. Configure Environment Variables
+
+Create the following file in the project root:
 
 ```text
 .env.development.local
 ```
 
-Configure the database connection using the environment variable expected by `backend/database.py`.
+Use `.env.example` and the environment configuration section below as references.
 
-Do not upload database credentials or environment files to GitHub.
+Configure a dedicated development database and the required server-side secrets.
 
-### Step 4: Start the Backend
+### 5. Initialize the Database
+
+For a new development database, load the environment configuration and create the application tables.
+
+```bash
+python -c "from dotenv import load_dotenv; load_dotenv('.env.development.local'); from backend.database import Base, engine; import backend.models; Base.metadata.create_all(bind=engine)"
+```
+
+For existing databases, review the relevant migration scripts before applying schema changes.
+
+> Do not perform development database initialization or migration operations against an unintended production database.
+
+### 6. Start the Backend
 
 From the project root:
 
@@ -506,175 +933,194 @@ From the project root:
 python -m uvicorn backend.main:app --reload --env-file .env.development.local
 ```
 
-Backend URL:
+### 7. Start the Frontend
 
-```text
-http://127.0.0.1:8000
-```
-
-FastAPI documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-### Step 5: Install Frontend Dependencies
-
-Open another terminal.
+Open a separate terminal from the project root:
 
 ```bash
 cd frontend
-```
-
-```bash
 npm install
-```
-
-### Step 6: Start the Frontend
-
-```bash
 npm run dev
 ```
 
-Open the local URL displayed by Vite.
+### Local Development URLs
 
-Usually:
+| Service | URL |
+| :--- | :--- |
+| Frontend | http://localhost:5173 |
+| Backend | http://localhost:8000 |
+| API Health | http://localhost:8000/api/health |
+| Swagger UI | http://localhost:8000/api/docs |
+
+### Production Frontend Build
+
+From the project root:
+
+```bash
+cd frontend
+npm run build
+```
+
+The generated frontend build is located in:
 
 ```text
-http://localhost:5173
+frontend/dist/
 ```
 
 ---
 
-## 13. Deployment
+## Environment Configuration
 
-WarmShare is deployed using Vercel.
+WarmShare uses environment variables to separate sensitive configuration from application source code.
 
-The application uses:
+### Required Environment Variables
 
-- Vercel for frontend and backend deployment
-- Supabase PostgreSQL for persistent data storage
-- GitHub for source code management
+| Variable | Description |
+| :--- | :--- |
+| `DATABASE_URL` | PostgreSQL database connection string |
+| `JWT_SECRET_KEY` | Secret used for JWT signing and verification |
+| `PASSWORD_PEPPER` | Server-side password pepper |
+| `LOGIN_RATE_LIMIT_SECRET` | Secret used to protect login rate-limit identifiers |
+| `ENVIRONMENT` | Application environment configuration |
 
-### Live Application
+### Example Configuration
 
-https://2311080-warmshare.vercel.app
+```env
+DATABASE_URL=postgresql://username:password@host:5432/database
 
-### GitHub Repository
+JWT_SECRET_KEY=replace-with-a-long-random-secret
 
-https://github.com/shaikaislamarpita/2311080-Warmshare
+PASSWORD_PEPPER=replace-with-a-long-random-password-pepper
 
-### API Health Check
+LOGIN_RATE_LIMIT_SECRET=replace-with-another-long-random-secret
 
-https://2311080-warmshare.vercel.app/api/health
+ENVIRONMENT=development
+```
 
-The Vercel configuration routes frontend requests to React and API requests to FastAPI.
+The values above are placeholders.
 
----
+Use independently generated, sufficiently long random secrets for each security-related variable.
 
-## 14. Testing
+### Environment Security
 
-### Functional Testing
-
-The MVP supports testing of:
-
-- Create listing
-- Read all listings
-- Read single listing
-- Update listing
-- Delete listing
-- Input validation
-- Database persistence
-- Frontend-backend integration
-
-### Testing Tools
-
-- Browser Developer Tools
-- Network tab
-- Postman
-- FastAPI Swagger documentation
-- GitHub deployment checks
-
-### Planned Security Testing
-
-- Unauthorized API access
-- Listing ownership verification
-- Authentication validation
-- Role permission verification
-- Pickup address privacy
-- Invalid token handling
-- Concurrent donation claims
-- Sensitive data exposure prevention
+- Never commit actual environment credentials.
+- Keep database credentials and security secrets server-side.
+- Store the password pepper separately from the database.
+- Preserve the existing pepper when maintaining compatibility with stored password hashes.
+- Configure production secrets through Vercel environment settings.
 
 ---
 
-## 15. Development Roadmap
+## Automated Testing
 
-| Phase | Features | Status |
-|---|---|---|
-| Phase 1 | Donation CRUD, React, FastAPI, PostgreSQL, deployment | Completed |
-| Phase 2 | Registration, login, authentication, permissions | Planned |
-| Phase 3 | Listing ownership and pickup address protection | Planned |
-| Phase 4 | Donation claiming and quantity reservation | Planned |
-| Phase 5 | NGO campaigns and volunteer management | Planned |
-| Phase 6 | Moderation, privacy management, and security hardening | Planned |
+WarmShare includes automated backend tests using Pytest to validate authentication, authorization, resource ownership, group permissions, administrative operations, and content moderation.
 
-The roadmap describes the intended complete platform.
+### Latest Local Test Results
 
-Implementation progress will be updated as development continues.
+| Metric | Result |
+| :--- | :--- |
+| Passed Tests | **92** |
+| Failed Tests | **0** |
+| Warnings | 2 |
+| Execution Time | 39.60 seconds |
+| Test Pass Rate | 100% |
 
----
+```text
+92 passed, 2 warnings in 39.60s
+```
 
-## 16. GitHub Development Workflow
+### Test Coverage
 
-WarmShare follows a structured GitHub workflow.
+| Test File | Coverage Area |
+| :--- | :--- |
+| `test_auth.py` | Registration and authentication |
+| `test_auth_security.py` | Password, token and session security |
+| `test_admin_rbac.py` | Administrative authorization |
+| `test_admin_user_details.py` | Administrative user detail operations |
+| `test_group_permissions.py` | Group ownership and member permissions |
+| `test_listing_rbac.py` | Donation ownership and access control |
+| `test_moderation.py` | Donation reporting and content moderation |
 
-1. Create a GitHub issue.
-2. Create a dedicated development branch.
-3. Implement the feature.
-4. Test locally.
-5. Commit the changes.
-6. Push the branch to GitHub.
-7. Create a pull request.
-8. Review and merge into the main branch.
-9. Verify deployment.
+### Running the Tests
 
-This workflow supports organized development and makes project changes traceable.
+Activate the Python virtual environment and execute the following command from the project root:
 
----
+```bash
+python -c "from dotenv import load_dotenv; load_dotenv('.env.development.local'); import pytest; raise SystemExit(pytest.main(['-q']))"
+```
 
-## 17. Future Scope
+The required environment variables must be available before the backend modules are imported.
 
-WarmShare is designed to evolve into a complete clothing donation and distribution ecosystem.
-
-Future development may include:
-
-- Location-based donation discovery
-- Automated donation notifications
-- Donation recommendation features
-- NGO campaign analytics
-- Volunteer scheduling
-- Distribution impact reports
-- Multilingual accessibility
-- Mobile application support
-- Community participation statistics
+The automated test configuration uses an isolated SQLite database for test execution.
 
 ---
 
-## 18. Project Status
+## Production Deployment
 
-**WarmShare is under active development.**
+WarmShare is deployed using Vercel for the frontend and backend, with Supabase providing persistent PostgreSQL database storage.
 
-The current MVP includes:
+```mermaid
+flowchart LR
+    U[User Browser]
 
-- Working React frontend
-- FastAPI backend
-- Supabase PostgreSQL integration
-- Donation listing CRUD operations
-- Successful Vercel deployment
-- GitHub-based development workflow
+    subgraph Vercel
+        F[React Frontend]
+        B[FastAPI Backend]
+        F <-->|REST API| B
+    end
 
-The complete system is being developed with an emphasis on secure accounts, privacy protection, reliable donation coordination, and community participation.
+    subgraph Supabase
+        D[(PostgreSQL)]
+    end
+
+    U --> F
+    B <--> D
+```
+
+### Deployment Configuration
+
+| Component | Configuration |
+| :--- | :--- |
+| Frontend Hosting | Vercel |
+| Backend Hosting | Vercel |
+| Database Hosting | Supabase |
+| Database Engine | PostgreSQL |
+| API Communication | Same-origin REST API |
+| Production Configuration | Vercel environment variables |
+| Deployment File | `vercel.json` |
+| Production Branch | `main` |
+
+The hosted PostgreSQL database maintains persistent application records independently of individual Vercel function executions.
+
+---
+
+## Project Documentation
+
+Supporting project documentation is maintained in the `docs/` directory.
+
+| Document | Description |
+| :--- | :--- |
+| [Product Requirements Document](docs/01-prd.md) | Product objectives, scope and requirements |
+| [Software Requirements Specification](docs/02-srs.md) | Functional and non-functional requirements |
+| [Technical Design Document](docs/03-tdd.md) | System architecture and technical design |
+| [API Documentation](https://2311080-warmshare.vercel.app/api/docs) | Interactive API specification |
+| [GitHub Repository](https://github.com/shaikaislamarpita/2311080-Warmshare) | Source code and development history |
+| [GitHub Issues](https://github.com/shaikaislamarpita/2311080-Warmshare/issues) | Development tasks and issue tracking |
+| [Pull Requests](https://github.com/shaikaislamarpita/2311080-Warmshare/pulls) | Feature integration and development changes |
+
+---
+
+## Author
+
+| Information | Details |
+| :--- | :--- |
+| Student ID | 2311080 |
+| Course | CSE309 |
+| Semester | Autumn 2026 |
+| University | Independent University, Bangladesh |
+| GitHub | [shaikaislamarpita](https://github.com/shaikaislamarpita) |
+
+Developed as an academic full-stack web application project focusing on secure authentication, role-based authorization, collaborative resource management, content moderation, and administrative management.
 
 ---
 
@@ -684,6 +1130,10 @@ The complete system is being developed with an emphasis on secure accounts, priv
 
 **Share Warmth. Build Community.**
 
-Built with React, TypeScript, FastAPI, and PostgreSQL.
+[Live Application](https://2311080-warmshare.vercel.app/) ·
+[API Documentation](https://2311080-warmshare.vercel.app/api/docs) ·
+[Source Code](https://github.com/shaikaislamarpita/2311080-Warmshare)
+
+CSE309 · Autumn 2026 · Independent University, Bangladesh
 
 </div>
