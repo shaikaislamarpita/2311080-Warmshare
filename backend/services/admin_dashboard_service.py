@@ -1,16 +1,20 @@
-
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 # Support both local development and Vercel deployment
 try:
     from backend.models import User, Listing, ListingReport, UserSession
+
 except ModuleNotFoundError as error:
     if error.name != "backend":
         raise
 
     from models import User, Listing, ListingReport, UserSession
 
+
+# ========================================
+# ADMIN DASHBOARD STATISTICS
+# ========================================
 
 def get_admin_dashboard_stats_service(db: Session):
     """Return summary statistics for the Admin dashboard."""
@@ -77,3 +81,48 @@ def get_admin_dashboard_stats_service(db: Session):
         "pending_reports": pending_reports,
         "active_sessions": active_sessions,
     }
+
+
+# ========================================
+# GET ACTIVE SESSION DETAILS
+# ========================================
+
+def get_active_sessions_service(db: Session):
+    """Return active login sessions with basic user information."""
+
+    sessions = db.execute(
+        select(
+            UserSession.id.label("session_id"),
+            UserSession.user_id,
+            User.full_name,
+            User.email,
+            User.role,
+            UserSession.created_at,
+            UserSession.expires_at,
+        )
+        .join(
+            User,
+            User.id == UserSession.user_id,
+        )
+        .where(
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > func.now(),
+        )
+        .order_by(
+            UserSession.created_at.desc(),
+            UserSession.id.desc(),
+        )
+    ).mappings().all()
+
+    return [
+        {
+            "session_id": str(session["session_id"]),
+            "user_id": session["user_id"],
+            "full_name": session["full_name"],
+            "email": session["email"],
+            "role": session["role"],
+            "created_at": session["created_at"],
+            "expires_at": session["expires_at"],
+        }
+        for session in sessions
+    ]

@@ -1,4 +1,3 @@
-
 import type { AuthUser, AuthMode } from "../../types/auth";
 
 type NavbarProps = {
@@ -8,6 +7,7 @@ type NavbarProps = {
   openAuth: (mode: AuthMode) => void;
   openCreateForm: () => void;
   openDashboard: () => void;
+  goHome: () => void;
 };
 
 export default function Navbar({
@@ -17,19 +17,27 @@ export default function Navbar({
   openAuth,
   openCreateForm,
   openDashboard,
+  goHome,
 }: NavbarProps) {
   return (
     <header className="navbar">
       <div className="nav-container">
-        <a className="logo" href="#home">
-          <span className="logo-icon">♥</span>
+
+        {/* WARMSHARE LOGO */}
+
+        <a
+          className="logo"
+          href="#home"
+          onClick={(event) => {
+            event.preventDefault();
+            goHome();
+          }}
+        >
+          <span className="logo-icon">{"\u2665"}</span>
           WarmShare
         </a>
 
-        <nav className="nav-links">
-          <a href="#home">Home</a>
-          <a href="#donations">Donations</a>
-        </nav>
+        {/* NAVIGATION ACTIONS */}
 
         <div className="nav-actions">
           {checkingSession ? (

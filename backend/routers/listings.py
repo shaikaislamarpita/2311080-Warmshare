@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
@@ -30,6 +29,7 @@ try:
     from backend.services.moderation_service import (
         create_listing_report_service,
         get_moderation_reports_service,
+        get_moderation_report_history_service,
         moderate_listing_service,
         review_listing_report_service,
     )
@@ -73,6 +73,7 @@ except ModuleNotFoundError as error:
     from services.moderation_service import (
         create_listing_report_service,
         get_moderation_reports_service,
+        get_moderation_report_history_service,
         moderate_listing_service,
         review_listing_report_service,
     )
@@ -245,7 +246,26 @@ def get_moderation_reports(
     return get_moderation_reports_service(db)
 
 
-# 9. Hide or restore a donation.
+# ========================================
+# MODERATION REPORT HISTORY
+# ========================================
+
+# 9. View resolved and dismissed reports.
+# Accessible to Moderators and Admins.
+@router.get(
+    "/moderation/reports/history",
+    response_model=list[ListingReportResponse],
+)
+def get_moderation_report_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(PERMISSION_MODERATE_CONTENT)
+    ),
+):
+    return get_moderation_report_history_service(db)
+
+
+# 10. Hide or restore a donation.
 # Accessible to Moderators and Admins.
 @router.patch(
     "/{listing_id}/moderation",
@@ -267,7 +287,7 @@ def moderate_listing(
     )
 
 
-# 10. Resolve or dismiss a report.
+# 11. Resolve or dismiss a report.
 # Accessible to Moderators and Admins.
 @router.patch(
     "/moderation/reports/{report_id}",

@@ -1,4 +1,3 @@
-
 import { useEffect, useState, type FormEvent } from "react";
 
 import type { AuthUser } from "../../types/auth";
@@ -6,6 +5,7 @@ import type { ListingReport } from "../../types/moderation";
 
 import {
   getModerationReports,
+  getModerationReportHistory,
   moderateListing,
   reviewListingReport,
 } from "../../services/moderationService";
@@ -66,6 +66,20 @@ export default function ModeratorDashboard({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // Report History
+  const [reportHistory, setReportHistory] = useState<ListingReport[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+
+  const [historyFilter, setHistoryFilter] = useState<
+    "all" | "resolved" | "dismissed"
+  >("all");
+
+  const filteredHistory = reportHistory.filter(
+    (report) =>
+      historyFilter === "all" || report.status === historyFilter
+  );
+
   // Profile management
   const [editingProfile, setEditingProfile] = useState(false);
   const [fullName, setFullName] = useState(currentUser.full_name);
@@ -73,8 +87,10 @@ export default function ModeratorDashboard({
 
   // Password management
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+
   const [passwordForm, setPasswordForm] =
     useState<PasswordForm>({ ...emptyPasswordForm });
+
   const [changingPassword, setChangingPassword] = useState(false);
 
   // Moderation inputs
@@ -91,7 +107,7 @@ export default function ModeratorDashboard({
   }, [currentUser.full_name]);
 
   // ========================================
-  // LOAD MODERATION REPORTS
+  // LOAD PENDING MODERATION REPORTS
   // ========================================
 
   async function loadReports() {
@@ -112,8 +128,31 @@ export default function ModeratorDashboard({
     }
   }
 
+  // ========================================
+  // LOAD REPORT HISTORY
+  // ========================================
+
+  async function loadReportHistory() {
+    setHistoryLoading(true);
+    setHistoryError("");
+
+    try {
+      const data = await getModerationReportHistory();
+      setReportHistory(data);
+    } catch (err) {
+      setHistoryError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load report history."
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadReports();
+    void loadReportHistory();
   }, []);
 
   // ========================================
@@ -306,9 +345,19 @@ export default function ModeratorDashboard({
         resolution_note: resolutionNote || null,
       });
 
+      // Remove reviewed report from pending reports.
       setReports((previous) =>
         previous.filter((item) => item.id !== report.id)
       );
+
+      // Clear the resolution note.
+      setResolutionNotes((previous) => ({
+        ...previous,
+        [report.id]: "",
+      }));
+
+      // Refresh history after resolving or dismissing.
+      await loadReportHistory();
 
       setMessage(
         status === "resolved"
@@ -655,7 +704,7 @@ export default function ModeratorDashboard({
             type="button"
             className="btn btn-outline"
             onClick={() => void loadReports()}
-            disabled={loading}
+            disabled={loading || busyReportId !== null}
           >
             {loading ? "Loading..." : "Refresh Reports"}
           </button>
@@ -751,7 +800,9 @@ export default function ModeratorDashboard({
                     <button
                       type="button"
                       className="btn btn-primary"
-                      disabled={busyReportId !== null}
+                      disabled={
+                        busyReportId !== null || historyLoading
+                      }
                       onClick={() =>
                         void handleReportReview(report, "resolved")
                       }
@@ -764,7 +815,9 @@ export default function ModeratorDashboard({
                     <button
                       type="button"
                       className="btn btn-outline"
-                      disabled={busyReportId !== null}
+                      disabled={
+                        busyReportId !== null || historyLoading
+                      }
                       onClick={() =>
                         void handleReportReview(report, "dismissed")
                       }
@@ -830,6 +883,180 @@ export default function ModeratorDashboard({
                     </button>
 
                   </div>
+                </div>
+
+              </article>
+            ))}
+
+          </div>
+        )}
+
+      </section>
+
+      {/* ========================================
+          REPORT HISTORY
+      ======================================== */}
+
+      <section className="dashboard-panel">
+
+        <div className="dashboard-panel-heading">
+          <div>
+            <h2>Report History</h2>
+
+            <p>
+              View previously resolved and dismissed reports.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => void loadReportHistory()}
+            disabled={
+              historyLoading || busyReportId !== null
+            }
+          >
+            {historyLoading ? "Loading..." : "Refresh History"}
+          </button>
+        </div>
+
+        {/* HISTORY FILTER */}
+
+        <div className="form-group">
+
+          <label htmlFor="report-history-filter">
+            Filter by Status
+          </label>
+
+          <select
+            id="report-history-filter"
+            value={historyFilter}
+            onChange={(event) =>
+              setHistoryFilter(
+                event.target.value as
+                  | "all"
+                  | "resolved"
+                  | "dismissed"
+              )
+            }
+          >
+            <option value="all">
+              All Reviewed Reports
+            </option>
+
+            <option value="resolved">
+              Resolved
+            </option>
+
+            <option value="dismissed">
+              Dismissed
+            </option>
+          </select>
+
+        </div>
+
+        {/* HISTORY ERROR */}
+
+        {historyError && (
+          <div className="alert alert-error" role="alert">
+            {historyError}
+          </div>
+        )}
+
+        {/* HISTORY RESULTS */}
+
+        {historyLoading ? (
+          <div className="dashboard-empty">
+
+            <h3>Loading Report History...</h3>
+
+            <p>
+              Please wait while reviewed reports are retrieved.
+            </p>
+
+          </div>
+        ) : historyError ? null : filteredHistory.length === 0 ? (
+          <div className="dashboard-empty">
+
+            <div className="dashboard-empty-icon">✓</div>
+
+            <h3>No Report History Found</h3>
+
+            <p>
+              No reviewed reports match the selected filter.
+            </p>
+
+          </div>
+        ) : (
+          <div className="moderation-report-list">
+
+            {filteredHistory.map((report) => (
+              <article
+                className="moderation-report-card"
+                key={report.id}
+              >
+
+                <div className="moderation-report-heading">
+
+                  <div>
+                    <span className="dashboard-role">
+                      Report #{report.id}
+                    </span>
+
+                    <h3>
+                      Donation Listing #{report.listing_id}
+                    </h3>
+                  </div>
+
+                  <span
+                    className={`dashboard-status ${report.status}`}
+                  >
+                    {report.status}
+                  </span>
+
+                </div>
+
+                <div className="moderation-report-details">
+
+                  <p>
+                    <strong>Reason:</strong>{" "}
+                    {report.reason}
+                  </p>
+
+                  <p>
+                    <strong>Additional details:</strong>{" "}
+                    {report.details ||
+                      "No additional details provided."}
+                  </p>
+
+                  <p>
+                    <strong>Reported by user ID:</strong>{" "}
+                    {report.reporter_id}
+                  </p>
+
+                  <p>
+                    <strong>Submitted:</strong>{" "}
+                    {new Date(report.created_at).toLocaleString()}
+                  </p>
+
+                  <p>
+                    <strong>Reviewed by user ID:</strong>{" "}
+                    {report.reviewed_by ?? "Unavailable"}
+                  </p>
+
+                  <p>
+                    <strong>Reviewed at:</strong>{" "}
+                    {report.reviewed_at
+                      ? new Date(report.reviewed_at).toLocaleString()
+                      : "Unavailable"}
+                  </p>
+
+                  <p>
+                    <strong>Resolution note:</strong>{" "}
+                    {report.resolution_note ||
+                      "No resolution note provided."}
+                  </p>
+
                 </div>
 
               </article>

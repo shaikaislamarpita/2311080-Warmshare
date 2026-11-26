@@ -68,6 +68,18 @@ def get_moderation_reports_service(db: Session):
         .order_by(ListingReport.created_at.desc())
         .all()
     )
+def get_moderation_report_history_service(db: Session):
+    return (
+        db.query(ListingReport)
+        .filter(
+            ListingReport.status.in_(["resolved", "dismissed"])
+        )
+        .order_by(
+            ListingReport.reviewed_at.desc(),
+            ListingReport.id.desc(),
+        )
+        .all()
+    )
 
 
 def moderate_listing_service(
